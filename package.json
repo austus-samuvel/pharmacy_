@@ -1,0 +1,13 @@
+{
+  "name": "coldchain-iot-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pharmacy Cold-Storage Stock Monitoring Platform UI Prototype",
+  "scripts": {
+    "build": "echo 'No build required for pure HTML/CSS/JS'",
+    "start": "npx serve -s . -l $PORT"
+  },
+  "dependencies": {
+    "serve": "^14.2.4"
+  }
+}

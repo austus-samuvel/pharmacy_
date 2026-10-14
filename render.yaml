@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: coldchain-iot-platform
+    env: static
+    buildCommand: ""
+    staticPublishPath: .
