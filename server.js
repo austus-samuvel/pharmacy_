@@ -48,3 +48,4 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`ColdChain IoT Platform server running at http://${HOST}:${PORT}/`);
 });
+
