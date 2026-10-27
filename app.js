@@ -19,16 +19,13 @@ const INITIAL_DATA = {
   
   pharmacyProfile: {
     id: 'pharma-1',
-    name: 'City Care Pharmacy',
+    name: 'City Care Pharmacy (Shelf A)',
     license: 'PHARM-8821-NY',
     city: 'Downtown Medical District, NY',
     channelToken: 'CCH-992-SECURE',
     channelStatus: 'Active',
     privacy: 'Public Directory Listed',
-    tempMin: 2.0,
-    tempMax: 8.0,
-    currentTemp: 3.8,
-    lastUpdate: 'Just now',
+        lastUpdate: 'Just now',
     deviceId: 'esp32-demo-001'
   },
 
@@ -42,8 +39,7 @@ const INITIAL_DATA = {
     wifiSsid: 'PharmaColdNet_5G',
     wifiRssi: '-62 dBm (Excellent)',
     ultrasonicSensor: 'HC-SR04 + Servo (Trig: GPIO5, Echo: GPIO18, Servo: GPIO13)',
-    tempSensor: 'DS18B20 1-Wire (Data: GPIO4/D2)',
-    lastSeen: '10 seconds ago',
+        lastSeen: '10 seconds ago',
     mode: 'Simulated IoT Node (Hardware Ready)'
   },
 
@@ -53,91 +49,52 @@ const INITIAL_DATA = {
       name: 'Insulin Glargine 100 U/mL',
       unit: 'vials',
       compartment: 'Rack A - Slot 1 (180°)',
-      quantity: 42,
+      quantity: 44,
       threshold: 15,
       status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 12.4,
+      lastMeasurement: 'Just now',
+      distance: 12.2,
       confidence: 98,
-      calibration: { empty: 45.0, full: 8.0 }
+      calibration: { empty: 45.0, full: 8.0, angle: 180 }
     },
     {
       id: 'med-2',
-      name: 'Polio Oral Vaccine (bOPV)',
-      unit: 'vials',
+      name: 'Amoxicillin Suspension (250mg)',
+      unit: 'bottles',
       compartment: 'Rack A - Slot 2 (147°)',
-      quantity: 12,
-      threshold: 20,
-      status: 'Low',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 34.2,
-      confidence: 95,
-      calibration: { empty: 45.0, full: 8.0 }
+      quantity: 28,
+      threshold: 15,
+      status: 'Normal',
+      lastMeasurement: 'Just now',
+      distance: 19.2,
+      confidence: 96,
+      calibration: { empty: 45.0, full: 8.0, angle: 147 }
     },
     {
       id: 'med-3',
       name: 'COVID-19 mRNA Vaccine (Pfizer)',
       unit: 'vials',
       compartment: 'Ultra-Cold Shelf 1 (131°)',
-      quantity: 8,
+      quantity: 21,
       threshold: 10,
-      status: 'Low',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 38.5,
-      confidence: 94,
-      calibration: { empty: 45.0, full: 8.0 }
+      status: 'Normal',
+      lastMeasurement: 'Just now',
+      distance: 29.5,
+      confidence: 95,
+      calibration: { empty: 45.0, full: 8.0, angle: 131 }
     },
     {
       id: 'med-4',
       name: 'Oxytocin Injection 10 IU/mL',
       unit: 'ampoules',
       compartment: 'Rack B - Slot 1 (121°)',
-      quantity: 65,
-      threshold: 25,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 9.1,
-      confidence: 99,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-5',
-      name: 'Hepatitis B Vaccine (Recombinant)',
-      unit: 'vials',
-      compartment: 'Rack B - Slot 2',
-      quantity: 18,
-      threshold: 15,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 28.0,
-      confidence: 92,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-6',
-      name: 'Tetanus Toxoid Vaccine',
-      unit: 'ampoules',
-      compartment: 'Rack C - Slot 1',
-      quantity: 5,
+      quantity: 10,
       threshold: 15,
       status: 'Low',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 41.2,
-      confidence: 91,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-7',
-      name: 'Amoxicillin Clavulanate Suspension',
-      unit: 'bottles',
-      compartment: 'Rack C - Slot 2',
-      quantity: 24,
-      threshold: 10,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 21.0,
-      confidence: 82,
-      calibration: { empty: 45.0, full: 8.0 }
+      lastMeasurement: 'Just now',
+      distance: 61.2,
+      confidence: 92,
+      calibration: { empty: 85.0, full: 15.0, angle: 121 }
     }
   ],
 
@@ -148,18 +105,8 @@ const INITIAL_DATA = {
       license: 'WHL-2024-91',
       contact: 'Marcus Vance (Logistics Director)',
       phone: '+1 (555) 234-8901',
-      email: 'm.vance@metromed-supply.com',
-      city: 'Central Logistics Park, NY',
-      status: 'Active'
-    },
-    {
-      id: 'dist-2',
-      name: 'PharmaLink Regional Supply Co.',
-      license: 'WHL-2023-45',
-      contact: 'Dr. Sarah Chen',
-      phone: '+1 (555) 456-7890',
-      email: 'schen@pharmalink-cold.org',
-      city: 'Harbor Freight Terminal, NJ',
+      email: 'orders@metromed-supply.com',
+      city: 'Regional Logistics Hub',
       status: 'Active'
     }
   ],
@@ -167,30 +114,12 @@ const INITIAL_DATA = {
   directoryPharmacies: [
     {
       id: 'pharma-1',
-      name: 'City Care Pharmacy',
+      name: 'City Care Pharmacy (Shelf A)',
       license: 'PHARM-8821-NY',
       city: 'Downtown Medical District, NY',
       availability: 'Available for Subscriptions',
       status: 'Active',
       hours: '24/7 Cold Chain Ready'
-    },
-    {
-      id: 'pharma-2',
-      name: 'Apex Health Chemist',
-      license: 'PHARM-9042-NY',
-      city: 'North Suburb Clinic Hub, NY',
-      availability: 'Available for Subscriptions',
-      status: 'Active',
-      hours: '08:00 - 22:00'
-    },
-    {
-      id: 'pharma-3',
-      name: 'Metro Well Pharmacy',
-      license: 'PHARM-7719-NJ',
-      city: 'West Valley Transit Hub, NJ',
-      availability: 'Private Access Only',
-      status: 'Active',
-      hours: '09:00 - 21:00'
     }
   ],
 
@@ -200,24 +129,8 @@ const INITIAL_DATA = {
       distributorId: 'dist-1',
       pharmacyId: 'pharma-1',
       status: 'approved',
-      requestDate: '2026-10-10',
-      notes: 'Urgent cold chain insulin & vaccine restock monitoring agreement.'
-    },
-    {
-      id: 'sub-2',
-      distributorId: 'dist-1',
-      pharmacyId: 'pharma-2',
-      status: 'pending',
-      requestDate: '2026-10-13',
-      notes: 'Monthly distribution sync for regional clinics.'
-    },
-    {
-      id: 'sub-3',
-      distributorId: 'dist-2',
-      pharmacyId: 'pharma-1',
-      status: 'pending',
-      requestDate: '2026-10-14',
-      notes: 'Emergency cold storage backup channel proposal.'
+      requestDate: '2026-10-27',
+      notes: 'Urgent cold-chain restock monitoring agreement.'
     }
   ],
 
@@ -242,17 +155,7 @@ const INITIAL_DATA = {
       unread: true,
       category: 'stock'
     },
-    {
-      id: 'alt-3',
-      pharmacyId: 'pharma-1',
-      title: 'Cold Storage Stable at 3.8°C',
-      desc: 'Temperature is within configured 2.0°C - 8.0°C range.',
-      severity: 'info',
-      timestamp: '14-Oct-2026 13:00',
-      unread: false,
-      category: 'temp'
-    },
-    {
+        {
       id: 'alt-4',
       pharmacyId: 'pharma-1',
       title: 'Ultrasonic Distance Sensor Calibrated',
@@ -264,18 +167,7 @@ const INITIAL_DATA = {
     }
   ],
 
-  temperatureHistory: [
-    { time: '00:00', temp: 3.6 },
-    { time: '02:00', temp: 3.8 },
-    { time: '04:00', temp: 3.7 },
-    { time: '06:00', temp: 4.0 },
-    { time: '08:00', temp: 4.2 },
-    { time: '10:00', temp: 4.1 },
-    { time: '12:00', temp: 4.4 },
-    { time: '14:00', temp: 4.6 },
-    { time: '16:00', temp: 3.8 }
-  ],
-
+  
   stockHistory: [
     { day: 'Wed', count: 185 },
     { day: 'Thu', count: 178 },
@@ -307,7 +199,7 @@ let state = loadState();
 
 function loadState() {
   try {
-    const saved = localStorage.getItem('COLDCHAIN_STATE');
+    const saved = localStorage.getItem('COLDCHAIN_STATE_V2');
     if (saved) {
       return JSON.parse(saved);
     }
@@ -319,7 +211,7 @@ function loadState() {
 
 function saveState() {
   try {
-    localStorage.setItem('COLDCHAIN_STATE', JSON.stringify(state));
+    localStorage.setItem('COLDCHAIN_STATE_V2', JSON.stringify(state));
   } catch (e) {
     console.error('Error saving state:', e);
   }
@@ -474,8 +366,7 @@ function renderPortalLayout() {
       { id: 'dashboard', label: 'Dashboard', icon: '📊' },
       { id: 'inventory', label: 'Medicine Inventory', icon: '💊' },
       { id: 'scanning', label: 'Ultrasonic Scanning', icon: '📡' },
-      { id: 'temperature', label: 'Cold-Storage Temp', icon: '❄️' },
-      { id: 'subscriptions', label: 'Distributor Access', icon: '🤝' },
+            { id: 'subscriptions', label: 'Distributor Access', icon: '🤝' },
       { id: 'alerts', label: 'Alerts & Warnings', icon: '🔔', badge: unreadAlerts || null },
       { id: 'channel', label: 'Channel Settings', icon: '⚙️' },
       { id: 'device', label: 'IoT Device & Sensors', icon: '📟' }
@@ -578,8 +469,7 @@ function renderActiveTabContent(role, tab) {
       case 'dashboard': return renderPharmacyDashboard();
       case 'inventory': return renderPharmacyInventory();
       case 'scanning': return renderStockScanning();
-      case 'temperature': return renderColdStorageMonitoring();
-      case 'subscriptions': return renderPharmacySubscriptions();
+            case 'subscriptions': return renderPharmacySubscriptions();
       case 'alerts': return renderPharmacyAlerts();
       case 'channel': return renderPharmacyChannel();
       case 'device': return renderDeviceSettings();
@@ -615,17 +505,19 @@ function renderPharmacyDashboard() {
   const totalMeds = state.medicines.length;
   const totalUnits = state.medicines.reduce((sum, m) => sum + m.quantity, 0);
   const lowStockCount = state.medicines.filter(m => m.quantity <= m.threshold).length;
-  const pendingSubs = state.subscriptions.filter(s => s.status === 'pending').length;
+  const sub = state.subscriptions.find(s => s.distributorId === 'dist-1');
+  const distApproved = sub && sub.status === 'approved';
+  const lastScan = state.latestTelemetry;
 
   return `
     <div class="page-header">
       <div>
-        <h1 class="page-title">Pharmacy Cold-Storage Dashboard</h1>
-        <p class="page-desc">${state.pharmacyProfile.name} • License: ${state.pharmacyProfile.license}</p>
+        <h1 class="page-title">${state.pharmacyProfile.name}</h1>
+        <p class="page-desc">Cold-Storage Shelf A Monitoring System • Hardware Node: <code>${state.device.id}</code></p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-outline" onclick="switchTab('scanning')">
-          📡 Request Stock Scan
+        <button class="btn btn-outline" onclick="fetchSupabaseTelemetry(true)">
+          🔄 Refresh Real-Time Data
         </button>
         <button class="btn btn-primary" onclick="openAddMedicineModal()">
           + Add Medicine
@@ -633,7 +525,28 @@ function renderPharmacyDashboard() {
       </div>
     </div>
 
-    <!-- Metrics Cards -->
+    <!-- Active Hardware Node Callout -->
+    <div class="hardware-callout" style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0; padding:0.85rem 1.25rem; border-radius:8px; margin-bottom:1.5rem;">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <span style="font-size:1.6rem;">📟</span>
+        <div>
+          <div style="font-weight:700; color:#166534; font-size:1rem;">
+            ${state.pharmacyProfile.name} — Shelf A Ultrasonic Monitor
+          </div>
+          <div style="font-size:0.8125rem; color:#15803d; margin-top:2px;">
+            Hardware ID: <code>${state.device.id}</code> • HC-SR04 Transceiver + SG90 Servo • Auto-Scan Every 60s
+          </div>
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <span class="badge badge-success" style="font-size:0.8rem;">🟢 Live Ingestion Active</span>
+        <div style="font-size:0.75rem; color:#166534; margin-top:3px;">
+          Last Ingestion: <strong>${lastScan ? formatTime(lastScan.timestamp) : state.pharmacyProfile.lastUpdate}</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- Metrics Cards (No Temp) -->
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">
@@ -641,16 +554,16 @@ function renderPharmacyDashboard() {
           <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">💊</div>
         </div>
         <div class="metric-value">${totalMeds}</div>
-        <div class="metric-sub">Across 6 Storage Racks</div>
+        <div class="metric-sub">Calibrated to fixed servo angles</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Estimated Stock Units</span>
+          <span class="metric-title">Calculated Stock Units</span>
           <div class="metric-icon-box" style="background:#d1fae5; color:#065f46;">📦</div>
         </div>
         <div class="metric-value">${totalUnits}</div>
-        <div class="metric-sub positive">Via HC-SR04 Ultrasonic Sonar</div>
+        <div class="metric-sub positive">Live ultrasonic depth conversion</div>
       </div>
 
       <div class="metric-card">
@@ -659,62 +572,54 @@ function renderPharmacyDashboard() {
           <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">⚠️</div>
         </div>
         <div class="metric-value" style="color:var(--danger);">${lowStockCount}</div>
-        <div class="metric-sub danger">Requires distributor restock</div>
+        <div class="metric-sub danger">At or below configured threshold</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Chamber Temperature</span>
-          <div class="metric-icon-box" style="background:#ccfbf1; color:#0f766e;">❄️</div>
-        </div>
-        <div class="metric-value">${state.pharmacyProfile.currentTemp}°C</div>
-        <div class="metric-sub positive">Configured: ${state.pharmacyProfile.tempMin}°C - ${state.pharmacyProfile.tempMax}°C</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Distributor Requests</span>
+          <span class="metric-title">Distributor Access</span>
           <div class="metric-icon-box" style="background:#fef3c7; color:#92400e;">🤝</div>
         </div>
-        <div class="metric-value">${pendingSubs}</div>
-        <div class="metric-sub warning">Awaiting stock channel approval</div>
+        <div class="metric-value" style="font-size:1.15rem;">
+          <span class="badge ${distApproved ? 'badge-success' : 'badge-warning'}">
+            ${distApproved ? 'Approved (Active)' : 'Pending Approval'}
+          </span>
+        </div>
+        <div class="metric-sub">MetroMed Wholesale Distribution</div>
       </div>
     </div>
 
-    <!-- Charts Row -->
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <span>❄️ Cold-Storage Temperature Curve (24h)</span>
-          </div>
-          <span class="badge badge-success">Target: 2°C - 8°C</span>
+    <!-- Real-Time Ultrasonic Echo Telemetry Section -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="card-title">
+          <span>📡 Real-Time Ultrasonic Echo Telemetry (ESP32 Servo 0°–180°)</span>
         </div>
-        <div class="card-body">
-          <div class="chart-container">
-            <canvas id="tempChart" class="mini-chart"></canvas>
-          </div>
-          <div class="chart-legend">
-            <div class="legend-item"><span class="legend-color" style="background:#0284c7;"></span> DS18B20 Temp (°C)</div>
-            <div class="legend-item"><span class="legend-color" style="background:#10b981;"></span> Safe Boundary</div>
-          </div>
+        <div style="font-size:0.8125rem; color:var(--text-muted);">
+          Latest Scan: <strong>#${lastScan ? lastScan.sequence : 'Live'}</strong> • Duration: <strong>${lastScan ? (lastScan.duration_ms / 1000).toFixed(2) + 's' : '2.78s'}</strong>
         </div>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <span>📊 Weekly Total Stock History</span>
-          </div>
-          <span class="badge badge-info">7-Day Aggregation</span>
+      <div class="card-body">
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem;">
+          ${renderAngleTelemetryCards()}
         </div>
-        <div class="card-body">
-          <div class="chart-container">
-            <canvas id="stockChart" class="mini-chart"></canvas>
-          </div>
-          <div class="chart-legend">
-            <div class="legend-item"><span class="legend-color" style="background:#0d9488;"></span> Estimated Inventory Volume</div>
-          </div>
+      </div>
+    </div>
+
+    <!-- Weekly Stock History Canvas Chart -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header">
+        <div class="card-title">
+          <span>📊 Weekly Total Stock History</span>
+        </div>
+        <span class="badge badge-info">7-Day Aggregation</span>
+      </div>
+      <div class="card-body">
+        <div class="chart-container">
+          <canvas id="stockChart" class="mini-chart"></canvas>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item"><span class="legend-color" style="background:#0d9488;"></span> Estimated Inventory Volume</div>
         </div>
       </div>
     </div>
@@ -764,6 +669,44 @@ function renderPharmacyDashboard() {
       </div>
     </div>
   `;
+}
+
+
+function renderAngleTelemetryCards() {
+  const angleMap = [
+    { angle: 180, medId: 'med-1', name: 'Insulin Glargine', max: 50, empty: 45.0, full: 8.0 },
+    { angle: 147, medId: 'med-2', name: 'Amoxicillin Suspension', max: 40, empty: 45.0, full: 8.0 },
+    { angle: 131, medId: 'med-3', name: 'COVID-19 mRNA Vaccine', max: 50, empty: 45.0, full: 8.0 },
+    { angle: 121, medId: 'med-4', name: 'Oxytocin Injection', max: 30, empty: 85.0, full: 15.0 }
+  ];
+
+  return angleMap.map(slot => {
+    const med = state.medicines.find(m => m.id === slot.medId) || {};
+    const dist = med.distance !== undefined ? med.distance : 20.0;
+    const qty = med.quantity !== undefined ? med.quantity : 30;
+    const isLow = qty <= (med.threshold || 15);
+    const fillPct = Math.round((qty / (slot.max || 50)) * 100);
+
+    return `
+      <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--radius); padding:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <span class="servo-angle-pill">📐 ${slot.angle}°</span>
+          <span class="badge ${isLow ? 'badge-danger' : 'badge-success'}">${isLow ? 'Low Stock' : 'Normal'}</span>
+        </div>
+        <strong style="font-size:0.875rem; display:block; margin-bottom:0.25rem;">${slot.name}</strong>
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem;">
+          Echo: <strong>${dist.toFixed(1)} cm</strong> • Tray: ${slot.empty}cm
+        </div>
+        <div class="progress-bar-container" style="height:6px; margin-bottom:0.35rem;">
+          <div class="progress-bar-fill" style="width:${Math.min(100, fillPct)}%; background:${isLow ? 'var(--danger)' : 'var(--primary)'};"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+          <span>Stock: <strong>${qty} ${med.unit || 'units'}</strong></span>
+          <span style="font-weight:600;">${fillPct}%</span>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
 function renderPharmacyInventory() {
@@ -1255,158 +1198,99 @@ function simulateTempSpike() {
 // ==========================================================================
 
 function renderPharmacySubscriptions() {
-  const pending = state.subscriptions.filter(s => s.pharmacyId === 'pharma-1' && s.status === 'pending');
-  const approved = state.subscriptions.filter(s => s.pharmacyId === 'pharma-1' && s.status === 'approved');
+  const sub = state.subscriptions.find(s => s.distributorId === 'dist-1') || {
+    id: 'sub-1', distributorId: 'dist-1', pharmacyId: 'pharma-1', status: 'approved', requestDate: '2026-10-27', notes: 'Urgent cold-chain restock monitoring agreement.'
+  };
+  const isApproved = sub.status === 'approved';
+  const dist = state.distributors[0];
 
   return `
     <div class="page-header">
       <div>
-        <h1 class="page-title">Distributor Channel Subscriptions</h1>
-        <p class="page-desc">Control wholesale distributor access to your live cold-storage medicine inventory</p>
+        <h1 class="page-title">Wholesale Distributor Access Control</h1>
+        <p class="page-desc">Manage viewing permissions for <strong>${state.pharmacyProfile.name}</strong> (Node: <code>${state.device.id}</code>)</p>
       </div>
     </div>
 
-    <div class="warning-callout">
+    <div class="info-callout" style="margin-bottom:1.5rem;">
       <div style="font-size:1.1rem;">🔒</div>
       <div>
-        <strong>Privacy Enforcement:</strong> Stock quantities, sensor confidence scores, and chamber temperatures remain completely hidden from wholesale distributors until you explicitly approve their subscription.
+        <strong>Single Distributor Channel:</strong> In compliance with pharmacy stock regulations, stock levels and live echo telemetry are only visible to the distributor when access is explicitly approved below.
       </div>
     </div>
 
-    <!-- Pending Requests Table -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
+    <!-- Distributor Card -->
+    <div class="card" style="max-width:700px;">
+      <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
         <div class="card-title">
-          <span>⏳ Pending Access Requests (${pending.length})</span>
+          <span>🏢 ${dist.name}</span>
         </div>
+        <span class="badge ${isApproved ? 'badge-success' : 'badge-warning'}">
+          ${isApproved ? '✅ Access Approved' : '⏳ Pending Approval'}
+        </span>
       </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Distributor Organization</th>
-              <th>License No.</th>
-              <th>Requested Date</th>
-              <th>Purpose / Notes</th>
-              <th style="text-align:right;">Access Decision</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pending.length === 0 ? `
-              <tr>
-                <td colspan="5">
-                  <div class="empty-state">
-                    <div class="empty-state-title">No pending subscription requests</div>
-                    <div class="empty-state-desc">All distributor requests have been processed.</div>
-                  </div>
-                </td>
-              </tr>
-            ` : pending.map(sub => {
-              const dist = state.distributors.find(d => d.id === sub.distributorId) || { name: 'Unknown Wholesaler', license: 'N/A' };
-              return `
-                <tr>
-                  <td>
-                    <strong>${dist.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${dist.city || ''}</div>
-                  </td>
-                  <td><code>${dist.license}</code></td>
-                  <td>${sub.requestDate}</td>
-                  <td style="max-width:280px;">${sub.notes}</td>
-                  <td style="text-align:right;">
-                    <button class="btn btn-teal btn-sm" onclick="handleSubscription('${sub.id}', 'approved')">
-                      Approve Stock Access
-                    </button>
-                    <button class="btn btn-danger-outline btn-sm" onclick="handleSubscription('${sub.id}', 'rejected')">
-                      Reject
-                    </button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
+      <div class="card-body">
+        <table class="data-table" style="margin-bottom:1.5rem;">
+          <tr>
+            <td><strong>Wholesale License:</strong></td>
+            <td><code>${dist.license}</code></td>
+          </tr>
+          <tr>
+            <td><strong>Primary Contact:</strong></td>
+            <td>${dist.contact} (${dist.email})</td>
+          </tr>
+          <tr>
+            <td><strong>Regional Depot:</strong></td>
+            <td>${dist.city}</td>
+          </tr>
+          <tr>
+            <td><strong>Request Date:</strong></td>
+            <td>${sub.requestDate}</td>
+          </tr>
+          <tr>
+            <td><strong>Purpose:</strong></td>
+            <td>${sub.notes}</td>
+          </tr>
+          <tr>
+            <td><strong>Current Access Status:</strong></td>
+            <td>
+              <strong>${isApproved ? 'Granted — Distributor sees live pharmacy dashboard' : 'Locked — Distributor sees access pending screen'}</strong>
+            </td>
+          </tr>
         </table>
-      </div>
-    </div>
 
-    <!-- Approved Distributors Table -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <span>✅ Approved Medicine Distributors (${approved.length})</span>
+        <div style="display:flex; gap:1rem;">
+          ${isApproved ? `
+            <button class="btn btn-danger-outline" onclick="toggleDistributorApproval('dist-1')">
+              Revoke Distributor Access
+            </button>
+          ` : `
+            <button class="btn btn-primary" onclick="toggleDistributorApproval('dist-1')">
+              ✓ Approve Dashboard Access for Distributor
+            </button>
+          `}
+          <button class="btn btn-outline" onclick="switchRole('distributor')">
+            Switch to Distributor View
+          </button>
         </div>
-        <span style="font-size:0.75rem; color:var(--text-muted);">Active stock read channels</span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Distributor Organization</th>
-              <th>Contact Details</th>
-              <th>Approval Status</th>
-              <th>Channel Access</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${approved.length === 0 ? `
-              <tr>
-                <td colspan="5">
-                  <div class="empty-state">
-                    <div class="empty-state-title">No approved distributors yet</div>
-                    <div class="empty-state-desc">Approve a pending distributor request to enable inventory synchronization.</div>
-                  </div>
-                </td>
-              </tr>
-            ` : approved.map(sub => {
-              const dist = state.distributors.find(d => d.id === sub.distributorId) || { name: 'MetroMed Wholesale', contact: 'Marcus Vance' };
-              return `
-                <tr>
-                  <td>
-                    <strong>${dist.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${dist.license}</div>
-                  </td>
-                  <td>${dist.contact || 'Marcus Vance'}</td>
-                  <td><span class="badge badge-success">Approved & Active</span></td>
-                  <td><code>Live Stock & Temperature Feed</code></td>
-                  <td style="text-align:right;">
-                    <button class="btn btn-danger-outline btn-sm" onclick="handleSubscription('${sub.id}', 'revoked')">
-                      Revoke Access
-                    </button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
       </div>
     </div>
   `;
 }
 
-function handleSubscription(subId, newStatus) {
-  const sub = state.subscriptions.find(s => s.id === subId);
-  if (!sub) return;
-
-  sub.status = newStatus;
-  saveState();
-
-  const dist = state.distributors.find(d => d.id === sub.distributorId);
-  const distName = dist ? dist.name : 'Distributor';
-
-  if (newStatus === 'approved') {
-    showToast(`Access approved for ${distName}. They can now view cold-storage stock.`, 'success');
-  } else if (newStatus === 'rejected') {
-    showToast(`Subscription request from ${distName} rejected.`, 'info');
-  } else if (newStatus === 'revoked') {
-    showToast(`Stock access revoked for ${distName}.`, 'warning');
+function toggleDistributorApproval(distId) {
+  let sub = state.subscriptions.find(s => s.distributorId === distId);
+  if (!sub) {
+    sub = { id: 'sub-1', distributorId: distId, pharmacyId: 'pharma-1', status: 'approved', requestDate: '2026-10-27', notes: 'Restock agreement.' };
+    state.subscriptions.push(sub);
+  } else {
+    sub.status = sub.status === 'approved' ? 'pending' : 'approved';
   }
-
+  saveState();
+  showToast(sub.status === 'approved' ? 'Distributor access granted. Live dashboard unlocked.' : 'Distributor access revoked.', sub.status === 'approved' ? 'success' : 'warning');
   renderApp();
 }
 
-// ==========================================================================
-// 9. Pharmacy Alerts View
-// ==========================================================================
 
 function renderPharmacyAlerts() {
   const filterCat = document.getElementById('alert-filter-cat')?.value || 'all';
@@ -1674,417 +1558,59 @@ function recalibrateSensors() {
 // ==========================================================================
 
 function renderDistributorDashboard() {
-  const approvedSubs = state.subscriptions.filter(s => s.distributorId === 'dist-1' && s.status === 'approved');
-  const pendingSubs = state.subscriptions.filter(s => s.distributorId === 'dist-1' && s.status === 'pending');
-  const visibleMedsCount = approvedSubs.length > 0 ? state.medicines.length : 0;
-  const lowStockInNetwork = approvedSubs.length > 0 ? state.medicines.filter(m => m.quantity <= m.threshold).length : 0;
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Medicine Distributor Dashboard</h1>
-        <p class="page-desc">${state.distributors[0].name} • Wholesale Cold-Chain Logistics</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="switchTab('directory')">
-          🔍 Find Partner Pharmacies
-        </button>
-        <button class="btn btn-primary" onclick="switchTab('stock')">
-          📦 View Approved Cold Stock
-        </button>
-      </div>
-    </div>
-
-    <!-- Metric Cards -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Subscribed Pharmacies</span>
-          <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">🏥</div>
-        </div>
-        <div class="metric-value">${approvedSubs.length}</div>
-        <div class="metric-sub positive">Approved stock viewing channels</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Pending Access Requests</span>
-          <div class="metric-icon-box" style="background:#fef3c7; color:#92400e;">⏳</div>
-        </div>
-        <div class="metric-value">${pendingSubs.length}</div>
-        <div class="metric-sub warning">Awaiting pharmacy consent</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Visible Stock Items</span>
-          <div class="metric-icon-box" style="background:#d1fae5; color:#065f46;">💊</div>
-        </div>
-        <div class="metric-value">${visibleMedsCount}</div>
-        <div class="metric-sub">Across approved channels</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Low Stock Restock Alerts</span>
-          <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">🚨</div>
-        </div>
-        <div class="metric-value" style="color:var(--danger);">${lowStockInNetwork}</div>
-        <div class="metric-sub danger">Pharmacies needing replenishment</div>
-      </div>
-    </div>
-
-    <!-- Approved Channel Overview -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title">
-          <span>🏥 Active Subscribed Pharmacies</span>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="switchTab('directory')">+ Request More Pharmacies</button>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Pharmacy</th>
-              <th>Location</th>
-              <th>Chamber Temp</th>
-              <th>Device Status</th>
-              <th>Visible Inventory</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${approvedSubs.map(sub => {
-              const pharma = state.directoryPharmacies.find(p => p.id === sub.pharmacyId) || state.pharmacyProfile;
-              return `
-                <tr>
-                  <td>
-                    <strong>${pharma.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${pharma.license || 'PHARM-8821'}</div>
-                  </td>
-                  <td>${pharma.city}</td>
-                  <td>
-                    <span class="badge badge-success">${state.pharmacyProfile.currentTemp}°C</span>
-                  </td>
-                  <td>
-                    <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-                      ${state.deviceOnline ? 'ESP8266 Online' : 'Device Offline'}
-                    </span>
-                  </td>
-                  <td><strong>${state.medicines.length} Medicines</strong></td>
-                  <td>
-                    <button class="btn btn-teal btn-sm" onclick="switchTab('stock')">
-                      View Stock Details →
-                    </button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Charts -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span>📊 Subscribed Pharmacy Inventory Volumes</span></div>
-      </div>
-      <div class="card-body">
-        <div class="chart-container">
-          <canvas id="distributorStockChart" class="mini-chart"></canvas>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderDistributorDirectory() {
-  const searchTerm = (document.getElementById('dir-search')?.value || '').toLowerCase();
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Pharmacy Cold-Chain Directory</h1>
-        <p class="page-desc">Public registry of pharmacies utilizing IoT cold-storage monitoring</p>
-      </div>
-    </div>
-
-    <div class="info-callout">
-      <div>🔒</div>
-      <div>
-        <strong>Confidentiality Policy:</strong> In compliance with pharmacy stock privacy regulations, detailed inventory numbers and chamber temperatures are never shown in this directory. You must submit a subscription request to request access.
-      </div>
-    </div>
-
-    <div class="table-toolbar">
-      <div class="table-search-group">
-        <input type="text" id="dir-search" class="input-search" placeholder="Search pharmacy by name or district..." value="${searchTerm}" oninput="renderApp()">
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Pharmacy Name</th>
-              <th>District / City</th>
-              <th>Operating Hours</th>
-              <th>Channel Availability</th>
-              <th>Subscription Status</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.directoryPharmacies.map(p => {
-              const existingSub = state.subscriptions.find(s => s.pharmacyId === p.id && s.distributorId === 'dist-1');
-              const subStatus = existingSub ? existingSub.status : 'none';
-
-              return `
-                <tr>
-                  <td>
-                    <strong>${p.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${p.license}</div>
-                  </td>
-                  <td>${p.city}</td>
-                  <td>${p.hours || 'Standard Business Hours'}</td>
-                  <td><span class="badge badge-info">${p.availability}</span></td>
-                  <td>
-                    ${subStatus === 'approved' ? '<span class="badge badge-success">Approved</span>' :
-                      subStatus === 'pending' ? '<span class="badge badge-warning">Request Pending</span>' :
-                      subStatus === 'rejected' ? '<span class="badge badge-danger">Rejected</span>' :
-                      '<span class="badge badge-neutral">Not Subscribed</span>'}
-                  </td>
-                  <td style="text-align:right;">
-                    ${subStatus === 'approved' ? `
-                      <button class="btn btn-teal btn-sm" onclick="switchTab('stock')">Inspect Stock</button>
-                    ` : subStatus === 'pending' ? `
-                      <button class="btn btn-outline btn-sm" onclick="cancelSubscriptionRequest('${existingSub.id}')">Cancel Request</button>
-                    ` : `
-                      <button class="btn btn-primary btn-sm" onclick="openRequestAccessModal('${p.id}')">Request Access</button>
-                    `}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function cancelSubscriptionRequest(subId) {
-  state.subscriptions = state.subscriptions.filter(s => s.id !== subId);
-  saveState();
-  showToast('Access request cancelled.', 'info');
-  renderApp();
-}
-
-function renderDistributorSubscriptions() {
-  const mySubs = state.subscriptions.filter(s => s.distributorId === 'dist-1');
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Wholesale Access Requests</h1>
-        <p class="page-desc">Track approvals, pending requests, and granted channels</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-primary" onclick="switchTab('directory')">+ Find More Pharmacies</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Target Pharmacy</th>
-              <th>Request Date</th>
-              <th>Purpose Note</th>
-              <th>Current Status</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${mySubs.map(s => {
-              const pharma = state.directoryPharmacies.find(p => p.id === s.pharmacyId) || { name: 'Unknown' };
-              return `
-                <tr>
-                  <td><strong>${pharma.name}</strong></td>
-                  <td>${s.requestDate}</td>
-                  <td>${s.notes}</td>
-                  <td>
-                    ${s.status === 'approved' ? '<span class="badge badge-success">Access Granted</span>' :
-                      s.status === 'pending' ? '<span class="badge badge-warning">Awaiting Approval</span>' :
-                      '<span class="badge badge-danger">' + s.status + '</span>'}
-                  </td>
-                  <td style="text-align:right;">
-                    ${s.status === 'approved' ? `
-                      <button class="btn btn-teal btn-sm" onclick="switchTab('stock')">Open Stock Feed</button>
-                    ` : `
-                      <button class="btn btn-outline btn-sm" onclick="cancelSubscriptionRequest('${s.id}')">Cancel</button>
-                    `}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function renderDistributorStock() {
-  // Check if distributor has approved subscription to City Care Pharmacy
-  const isApproved = state.subscriptions.some(s => s.distributorId === 'dist-1' && s.pharmacyId === 'pharma-1' && s.status === 'approved');
+  const sub = state.subscriptions.find(s => s.distributorId === 'dist-1');
+  const isApproved = sub && sub.status === 'approved';
+  const dist = state.distributors[0];
 
   if (!isApproved) {
     return `
       <div class="page-header">
         <div>
-          <h1 class="page-title">Pharmacy Cold Stock Details</h1>
-          <p class="page-desc">Secure cold-chain inventory inspection</p>
+          <h1 class="page-title">Wholesale Distributor Portal</h1>
+          <p class="page-desc">${dist.name} • License: ${dist.license}</p>
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-body">
-          <div class="empty-state">
-            <div class="empty-state-icon">🔒</div>
-            <div class="empty-state-title">Access Restricted</div>
-            <div class="empty-state-desc">
-              Your distributor account has not been approved to view City Care Pharmacy's cold-storage inventory.
-            </div>
-            <button class="btn btn-primary" onclick="switchRole('pharmacy'); switchTab('subscriptions');">
-              Switch to Pharmacy Portal to Approve Request
-            </button>
-          </div>
-        </div>
+      <div class="card" style="text-align:center; padding:3.5rem 1.5rem; max-width:650px; margin:2rem auto;">
+        <div style="font-size:3.5rem; margin-bottom:1rem;">🔒</div>
+        <h2 style="font-size:1.35rem; margin-bottom:0.5rem;">Access Awaiting Pharmacy Approval</h2>
+        <p style="color:var(--text-muted); font-size:0.9rem; line-height:1.5; margin-bottom:1.5rem;">
+          Your distributor account (<strong>${dist.name}</strong>) has not yet been approved by <strong>${state.pharmacyProfile.name}</strong> (Node: <code>${state.device.id}</code>).
+          <br><br>
+          Once approved in the Pharmacy Portal, the real-time stock dashboard and telemetry stream will be displayed here automatically.
+        </p>
+        <button class="btn btn-primary" onclick="switchRole('pharmacy'); switchTab('subscriptions');">
+          Switch to Pharmacy Portal to Approve Access
+        </button>
       </div>
     `;
   }
 
+  // APPROVED: Display Pharmacy Dashboard with distributor banner!
   return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">${state.pharmacyProfile.name} • Cold-Storage Stock</h1>
-        <p class="page-desc">Approved Channel Feed • License: ${state.pharmacyProfile.license}</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="requestDistributorScan()">
-          🔄 Request Fresh Stock Scan
-        </button>
-      </div>
-    </div>
-
-    ${!state.deviceOnline ? `
-      <div class="warning-callout">
-        <div>⚠️</div>
+    <div class="hardware-callout" style="display:flex; justify-content:space-between; align-items:center; background:#e0f2fe; border:1px solid #7dd3fc; padding:0.85rem 1.25rem; border-radius:8px; margin-bottom:1.5rem;">
+      <div style="display:flex; align-items:center; gap:0.75rem;">
+        <span style="font-size:1.6rem;">🚚</span>
         <div>
-          <strong>Stale Data Warning:</strong> The pharmacy's ESP8266 IoT device is currently OFFLINE. The inventory counts displayed below represent the last cached readings from earlier today.
+          <div style="font-weight:700; color:#0369a1; font-size:1rem;">
+            ${dist.name} — Authorized Read-Only Live Stock Feed
+          </div>
+          <div style="font-size:0.8125rem; color:#0284c7; margin-top:2px;">
+            Viewing live inventory for <strong>${state.pharmacyProfile.name}</strong> • Node: <code>${state.device.id}</code>
+          </div>
         </div>
       </div>
-    ` : ''}
-
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Current Chamber Temp</span>
-          <div class="metric-icon-box" style="background:#ccfbf1; color:#0f766e;">❄️</div>
-        </div>
-        <div class="metric-value">${state.pharmacyProfile.currentTemp}°C</div>
-        <div class="metric-sub positive">Safe Band: 2.0°C - 8.0°C</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">IoT Connection</span>
-          <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">📡</div>
-        </div>
-        <div class="metric-value" style="font-size:1.3rem;">
-          <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-            ${state.deviceOnline ? 'ESP8266 Online' : 'Device Offline'}
-          </span>
-        </div>
-        <div class="metric-sub">Updated ${state.pharmacyProfile.lastUpdate}</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Items Requiring Restock</span>
-          <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">⚠️</div>
-        </div>
-        <div class="metric-value" style="color:var(--danger);">
-          ${state.medicines.filter(m => m.quantity <= m.threshold).length}
-        </div>
-        <div class="metric-sub danger">At or below reorder threshold</div>
-      </div>
+      <span class="badge badge-success" style="font-size:0.8rem;">Access Active</span>
     </div>
 
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title"><span>💊 Real-Time Medicine Inventory</span></div>
-        <span class="badge badge-info">Ultrasonic Calibrated Estimates</span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Medicine Name</th>
-              <th>Unit</th>
-              <th>Compartment</th>
-              <th>Estimated Stock</th>
-              <th>Threshold</th>
-              <th>Status</th>
-              <th>Sensor Confidence</th>
-              <th>Restock Need</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.medicines.map(m => {
-              const isLow = m.quantity <= m.threshold;
-              return `
-                <tr>
-                  <td><strong>${m.name}</strong></td>
-                  <td>${m.unit}</td>
-                  <td><code>${m.compartment}</code></td>
-                  <td><strong style="color:${isLow ? 'var(--danger)' : 'var(--text-main)'};">${m.quantity}</strong></td>
-                  <td>${m.threshold}</td>
-                  <td>
-                    <span class="badge ${isLow ? 'badge-danger' : 'badge-success'}">
-                      ${isLow ? 'Low Stock' : 'Adequate'}
-                    </span>
-                  </td>
-                  <td>${m.confidence}%</td>
-                  <td>
-                    ${isLow ? '<span style="color:var(--danger); font-weight:600;">Dispatch Recommended</span>' : '<span style="color:var(--text-muted);">Stock OK</span>'}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    ${renderPharmacyDashboard()}
   `;
 }
 
-function requestDistributorScan() {
-  if (!state.deviceOnline) {
-    showToast('Cannot request stock update: Pharmacy IoT device is currently OFFLINE.', 'danger');
-    return;
-  }
-  showToast('Simulated stock update request sent to City Care Pharmacy ESP8266 node...', 'info');
-  setTimeout(() => {
-    showToast('Stock readings refreshed from pharmacy cold-storage sensors.', 'success');
-    renderApp();
-  }, 1200);
+function renderDistributorStock() {
+  return renderDistributorDashboard();
 }
+
 
 function renderDistributorAlerts() {
   return `
@@ -2603,9 +2129,7 @@ function renderLandingPage() {
 // ==========================================================================
 
 function initCharts() {
-  drawTempChart('tempChart', 220);
-  drawTempChart('tempChartLarge', 280);
-  drawStockChart('stockChart', 220);
+      drawStockChart('stockChart', 220);
   drawDistributorChart('distributorStockChart', 220);
 }
 
@@ -3156,9 +2680,12 @@ function getSupabase() {
   return supabaseClient;
 }
 
-async function fetchSupabaseTelemetry() {
+async function fetchSupabaseTelemetry(manual = false) {
   const sb = getSupabase();
-  if (!sb) return;
+  if (!sb) {
+    console.warn("Supabase client not initialized.");
+    return;
+  }
 
   try {
     const { data: scans, error } = await sb
@@ -3167,31 +2694,45 @@ async function fetchSupabaseTelemetry() {
       .order("created_at", { ascending: false })
       .limit(1);
 
-    if (error || !scans || scans.length === 0) return;
+    if (error) {
+      console.error("Supabase query error:", error);
+      if (manual) showToast("Error connecting to Supabase: " + error.message, "danger");
+      return;
+    }
+
+    if (!scans || scans.length === 0) {
+      if (manual) showToast("No scans found in database.", "warning");
+      return;
+    }
 
     const latestScan = scans[0];
     const readings = latestScan.distance_readings || [];
     const scanTime = new Date(latestScan.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-    // Match readings to medicines by servo angle
-    const angleMap = {
-      180: 'med-1',
-      147: 'med-2',
-      131: 'med-3',
-      121: 'med-4'
+    state.latestTelemetry = {
+      sequence: latestScan.scan_sequence,
+      duration_ms: latestScan.scan_duration_ms,
+      timestamp: latestScan.created_at,
+      readings: readings
     };
 
+    // Angle mapping to medicines
+    const angleMap = [
+      { angle: 180, medId: 'med-1', empty: 45.0, full: 8.0, max: 50 },
+      { angle: 147, medId: 'med-2', empty: 45.0, full: 8.0, max: 40 },
+      { angle: 131, medId: 'med-3', empty: 45.0, full: 8.0, max: 50 },
+      { angle: 121, medId: 'med-4', empty: 85.0, full: 15.0, max: 30 }
+    ];
+
     let updatedAny = false;
-    readings.forEach(r => {
-      const medId = angleMap[r.angle];
-      const med = state.medicines.find(m => m.id === medId);
-      if (med && r.is_valid && r.distance_cm !== null) {
-        med.distance = parseFloat(r.distance_cm.toFixed(1));
-        const empty = (med.calibration && med.calibration.empty) || 45.0;
-        const full = (med.calibration && med.calibration.full) || 8.0;
-        const stackSpan = Math.max(1, empty - full);
-        const stackHeight = Math.max(0, empty - med.distance);
-        const qty = Math.max(0, Math.min(60, Math.round((stackHeight / stackSpan) * 50)));
+    angleMap.forEach(slot => {
+      const reading = readings.find(r => Math.abs(r.angle - slot.angle) <= 3);
+      const med = state.medicines.find(m => m.id === slot.medId);
+      if (med && reading && reading.is_valid && reading.distance_cm !== null) {
+        med.distance = parseFloat(reading.distance_cm.toFixed(1));
+        const stackSpan = Math.max(1, slot.empty - slot.full);
+        const stackHeight = Math.max(0, slot.empty - med.distance);
+        const qty = Math.max(0, Math.min(slot.max, Math.round((stackHeight / stackSpan) * slot.max)));
         med.quantity = qty;
         med.status = qty <= med.threshold ? 'Low' : 'Normal';
         med.lastMeasurement = scanTime;
@@ -3204,17 +2745,24 @@ async function fetchSupabaseTelemetry() {
     state.device.lastSeen = scanTime + ' (Live ESP32)';
     state.pharmacyProfile.lastUpdate = scanTime;
 
-    if (updatedAny) {
-      saveState();
-      const modal = document.getElementById('modal-container');
-      if (!modal || !modal.classList.contains('open')) {
-        renderApp();
-      }
+    saveState();
+    renderApp();
+
+    if (manual) {
+      showToast(`Synced live scan #${latestScan.scan_sequence} from ESP32!`, 'success');
     }
   } catch (e) {
-    console.error("Telemetry sync error:", e);
+    console.error("Telemetry sync exception:", e);
+    if (manual) showToast("Exception fetching telemetry: " + e.message, "danger");
   }
 }
+
+function formatTime(isoStr) {
+  if (!isoStr) return "Just now";
+  const d = new Date(isoStr);
+  return isNaN(d.getTime()) ? "Just now" : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
 
 function initSupabaseSync() {
   fetchSupabaseTelemetry();
