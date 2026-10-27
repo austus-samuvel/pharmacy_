@@ -3,11 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "description": "Pharmacy Cold-Storage Stock Monitoring Platform UI Prototype",
+  "main": "server.js",
   "scripts": {
-    "build": "echo 'Static assets ready'",
-    "start": "npx serve -s . -l $PORT"
-  },
-  "dependencies": {
-    "serve": "^14.2.4"
+    "build": "echo 'Build complete'",
+    "start": "node server.js"
   }
 }
