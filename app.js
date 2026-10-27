@@ -8,6 +8,10 @@
 // ==========================================================================
 
 const INITIAL_DATA = {
+  servoCalibration: {
+    normalAngle: 180,
+    enableCompensation: true
+  },
   currentRole: 'pharmacy', // 'pharmacy' | 'distributor' | 'admin' | 'landing'
   activeTab: {
     pharmacy: 'dashboard',
@@ -53,6 +57,8 @@ const INITIAL_DATA = {
       threshold: 15,
       status: 'Normal',
       lastMeasurement: 'Just now',
+      raw_distance: 12.2,
+      angle_deduction: 0.0,
       distance: 12.2,
       confidence: 98,
       calibration: { empty: 45.0, full: 8.0, angle: 180 }
@@ -62,11 +68,13 @@ const INITIAL_DATA = {
       name: 'Amoxicillin Suspension (250mg)',
       unit: 'bottles',
       compartment: 'Rack A - Slot 2 (147°)',
-      quantity: 28,
+      quantity: 31,
       threshold: 15,
       status: 'Normal',
       lastMeasurement: 'Just now',
-      distance: 19.2,
+      raw_distance: 19.2,
+      angle_deduction: 3.1,
+      distance: 16.1,
       confidence: 96,
       calibration: { empty: 45.0, full: 8.0, angle: 147 }
     },
@@ -75,11 +83,13 @@ const INITIAL_DATA = {
       name: 'COVID-19 mRNA Vaccine (Pfizer)',
       unit: 'vials',
       compartment: 'Ultra-Cold Shelf 1 (131°)',
-      quantity: 21,
+      quantity: 10,
       threshold: 10,
       status: 'Normal',
       lastMeasurement: 'Just now',
-      distance: 29.5,
+      raw_distance: 57.1,
+      angle_deduction: 19.6,
+      distance: 37.5,
       confidence: 95,
       calibration: { empty: 45.0, full: 8.0, angle: 131 }
     },
@@ -88,11 +98,13 @@ const INITIAL_DATA = {
       name: 'Oxytocin Injection 10 IU/mL',
       unit: 'ampoules',
       compartment: 'Rack B - Slot 1 (121°)',
-      quantity: 10,
+      quantity: 19,
       threshold: 15,
-      status: 'Low',
+      status: 'Normal',
       lastMeasurement: 'Just now',
-      distance: 61.2,
+      raw_distance: 57.7,
+      angle_deduction: 28.0,
+      distance: 29.7,
       confidence: 92,
       calibration: { empty: 85.0, full: 15.0, angle: 121 }
     }
@@ -672,7 +684,60 @@ function renderPharmacyDashboard() {
 }
 
 
+
+// ==========================================================================
+// Servo Angle-Based Geometric Slant Compensation
+// ==========================================================================
+
+function calculateAngleCorrectedDistance(rawDistance, angle) {
+  if (rawDistance === null || rawDistance === undefined || isNaN(rawDistance)) {
+    return { raw: 0, deduction: 0, corrected: 0, angleDeviation: 0 };
+  }
+
+  const normalAngle = (state.servoCalibration && state.servoCalibration.normalAngle) !== undefined 
+    ? state.servoCalibration.normalAngle 
+    : 180;
+  const isEnabled = (state.servoCalibration && state.servoCalibration.enableCompensation) !== false;
+
+  const deviationDeg = Math.abs(angle - normalAngle);
+  if (!isEnabled || deviationDeg === 0) {
+    return {
+      raw: parseFloat(rawDistance.toFixed(1)),
+      deduction: 0.0,
+      corrected: parseFloat(rawDistance.toFixed(1)),
+      angleDeviation: deviationDeg
+    };
+  }
+
+  // Trigonometric slant compensation:
+  // True perpendicular/normal depth = raw * cos(deviation)
+  // Extra distance created by the base offset = raw * (1 - cos(deviation))
+  const rad = deviationDeg * (Math.PI / 180);
+  const cosFactor = Math.cos(rad);
+  const corrected = Math.max(0, rawDistance * cosFactor);
+  const deduction = Math.max(0, rawDistance - corrected);
+
+  return {
+    raw: parseFloat(rawDistance.toFixed(1)),
+    deduction: parseFloat(deduction.toFixed(1)),
+    corrected: parseFloat(corrected.toFixed(1)),
+    angleDeviation: deviationDeg
+  };
+}
+
+function setServoNormalAngle(angle) {
+  if (!state.servoCalibration) {
+    state.servoCalibration = { normalAngle: 180, enableCompensation: true };
+  }
+  state.servoCalibration.normalAngle = parseInt(angle, 10);
+  saveState();
+  fetchSupabaseTelemetry(false);
+  showToast(`Servo normal reference set to ${angle}°. Slant distance reduced accordingly.`, 'info');
+  renderApp();
+}
+
 function renderAngleTelemetryCards() {
+  const normalAngle = (state.servoCalibration && state.servoCalibration.normalAngle) || 180;
   const angleMap = [
     { angle: 180, medId: 'med-1', name: 'Insulin Glargine', max: 50, empty: 45.0, full: 8.0 },
     { angle: 147, medId: 'med-2', name: 'Amoxicillin Suspension', max: 40, empty: 45.0, full: 8.0 },
@@ -680,9 +745,11 @@ function renderAngleTelemetryCards() {
     { angle: 121, medId: 'med-4', name: 'Oxytocin Injection', max: 30, empty: 85.0, full: 15.0 }
   ];
 
-  return angleMap.map(slot => {
+  const cardsHtml = angleMap.map(slot => {
     const med = state.medicines.find(m => m.id === slot.medId) || {};
-    const dist = med.distance !== undefined ? med.distance : 20.0;
+    const rawDist = med.raw_distance !== undefined ? med.raw_distance : (med.distance || 20.0);
+    const comp = calculateAngleCorrectedDistance(rawDist, slot.angle);
+    const corrDist = comp.corrected;
     const qty = med.quantity !== undefined ? med.quantity : 30;
     const isLow = qty <= (med.threshold || 15);
     const fillPct = Math.round((qty / (slot.max || 50)) * 100);
@@ -694,19 +761,41 @@ function renderAngleTelemetryCards() {
           <span class="badge ${isLow ? 'badge-danger' : 'badge-success'}">${isLow ? 'Low Stock' : 'Normal'}</span>
         </div>
         <strong style="font-size:0.875rem; display:block; margin-bottom:0.25rem;">${slot.name}</strong>
-        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem;">
-          Echo: <strong>${dist.toFixed(1)} cm</strong> • Tray: ${slot.empty}cm
+        <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.25rem;">
+          Raw Echo: <code>${rawDist.toFixed(1)} cm</code>
+        </div>
+        <div style="font-size:0.75rem; color:#0284c7; font-weight:600; margin-bottom:0.35rem;">
+          Angle Reduction: -${comp.deduction.toFixed(1)} cm (|${slot.angle}° - ${normalAngle}°|)
+        </div>
+        <div style="font-size:0.8125rem; margin-bottom:0.5rem;">
+          Corrected Depth: <strong>${corrDist.toFixed(1)} cm</strong> • Tray: ${slot.empty}cm
         </div>
         <div class="progress-bar-container" style="height:6px; margin-bottom:0.35rem;">
           <div class="progress-bar-fill" style="width:${Math.min(100, fillPct)}%; background:${isLow ? 'var(--danger)' : 'var(--primary)'};"></div>
         </div>
         <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
           <span>Stock: <strong>${qty} ${med.unit || 'units'}</strong></span>
-          <span style="font-weight:600;">${fillPct}%</span>
+          <span style="font-weight:600;">${fillPct}% filled</span>
         </div>
       </div>
     `;
   }).join('');
+
+  return `
+    <div style="grid-column: 1 / -1; display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border:1px solid #e2e8f0; padding:0.6rem 1rem; border-radius:6px; margin-bottom:0.5rem; font-size:0.8rem;">
+      <div>
+        <strong>📐 Angle-Based Slant Reduction:</strong>
+        <span style="color:#0284c7; font-family:var(--font-mono); margin-left:0.3rem;">d_corrected = d_raw × cos(|${normalAngle}° - θ|)</span>
+        <span style="color:var(--text-muted); margin-left:0.5rem;">(Reduces extra distance created by baseline offset)</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:0.4rem;">
+        <span style="color:var(--text-muted);">Normal Reference:</span>
+        <button class="btn btn-sm ${normalAngle === 180 ? 'btn-primary' : 'btn-outline'}" onclick="setServoNormalAngle(180)">180° (End)</button>
+        <button class="btn btn-sm ${normalAngle === 90 ? 'btn-primary' : 'btn-outline'}" onclick="setServoNormalAngle(90)">90° (Center)</button>
+      </div>
+    </div>
+    ${cardsHtml}
+  `;
 }
 
 function renderPharmacyInventory() {
@@ -808,7 +897,10 @@ function renderPharmacyInventory() {
                     isLow ? '<span class="badge badge-danger">Low Stock</span>' : 
                     '<span class="badge badge-success">Optimal</span>'}
                 </td>
-                <td>${m.distance ? m.distance.toFixed(1) + ' cm' : 'N/A'}</td>
+                <td>
+                  <strong>${m.distance ? m.distance.toFixed(1) + ' cm' : 'N/A'}</strong>
+                  ${m.angle_deduction ? `<div style="font-size:0.72rem; color:#0284c7;">Raw: ${(m.raw_distance || m.distance).toFixed(1)}cm (-${m.angle_deduction.toFixed(1)}cm)</div>` : ''}
+                </td>
                 <td>
                   <span style="font-weight:600; color:${m.confidence >= 90 ? 'var(--success-text)' : 'var(--warning-text)'};">
                     ${m.confidence}%
@@ -2729,7 +2821,15 @@ async function fetchSupabaseTelemetry(manual = false) {
       const reading = readings.find(r => Math.abs(r.angle - slot.angle) <= 3);
       const med = state.medicines.find(m => m.id === slot.medId);
       if (med && reading && reading.is_valid && reading.distance_cm !== null) {
-        med.distance = parseFloat(reading.distance_cm.toFixed(1));
+        const rawDist = reading.distance_cm;
+        const comp = calculateAngleCorrectedDistance(rawDist, slot.angle);
+
+        // Store both raw measurement and angle-reduced normal depth
+        med.raw_distance = comp.raw;
+        med.angle_deduction = comp.deduction;
+        med.angle_deviation = comp.angleDeviation;
+        med.distance = comp.corrected; // Used for stack conversion!
+
         const stackSpan = Math.max(1, slot.empty - slot.full);
         const stackHeight = Math.max(0, slot.empty - med.distance);
         const qty = Math.max(0, Math.min(slot.max, Math.round((stackHeight / stackSpan) * slot.max)));
