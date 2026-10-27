@@ -1,6 +1,10 @@
 services:
   - type: web
     name: coldchain-iot-platform
-    env: static
-    buildCommand: ""
+    runtime: static
+    buildCommand: echo "Static assets ready"
     staticPublishPath: .
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

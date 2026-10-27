@@ -1,634 +1,659 @@
 /**
- * Pharmacy Cold-Storage Stock Monitoring Platform - Application Logic
- * Pure Vanilla JavaScript - Zero Build Tools - Instant Execution
+ * ColdChain IoT - Pharmacy and Distributor Inventory Management System
+ * Pure Vanilla JavaScript Client Engine (Powered by Live Supabase Telemetry)
+ * ---------------------------------------------------------------------
+ * Features:
+ * - Direct Supabase integration with real-time IoT scan ingestion
+ * - Automated depth-to-unit stock conversion from physical container dimensions
+ * - Scanning arc visualization (0°–180°) mapped to live HC-SR04 sonar readings
+ * - In-place DOM updates on every periodic 60-second scan
+ * - Medicine slot configuration and distributor access workflows
  */
 
-// ==========================================================================
-// 1. Initial Mock Database & LocalStorage Persistence
-// ==========================================================================
+// ============================================================================
+// 1. Supabase Client & Application State
+// ============================================================================
 
-const INITIAL_DATA = {
-  currentRole: 'pharmacy', // 'pharmacy' | 'distributor' | 'admin' | 'landing'
+const SUPABASE_URL = "https://bfqzofrxqgdftdfnsrki.supabase.co";
+const SUPABASE_ANON_KEY =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJmcXpvZnJ4cWdkZnRkZm5zcmtpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTMwOTI0NjMsImV4cCI6MjEwODY2ODQ2M30.S85ZRPd2sRqBCCV7F6yEkftyuI6_2ppxkJB6bWvrDnU";
+
+// Initialize Supabase Client
+let supabase = null;
+
+function getSupabase() {
+  if (!supabase && typeof window !== "undefined" && window.supabase && typeof window.supabase.createClient === "function") {
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+  return supabase;
+}
+
+// Initial Default Medicine Slot Profiles matching active hardware servo angles
+const DEFAULT_MEDICINES = [
+  {
+    id: "med-180",
+    name: "Insulin Glargine Vials (100 U/mL)",
+    storage_angle: 180,
+    unit: "vials",
+    empty_distance_cm: 45.0,
+    full_distance_cm: 8.0,
+    unit_height_cm: 0.74,
+    max_capacity: 50,
+    min_threshold: 15,
+    current_stock: 45,
+    last_distance_cm: 11.82,
+    last_reading_at: new Date().toISOString(),
+    status: "Normal",
+  },
+  {
+    id: "med-147",
+    name: "Amoxicillin Suspension (250mg/5mL)",
+    storage_angle: 147,
+    unit: "bottles",
+    empty_distance_cm: 45.0,
+    full_distance_cm: 8.0,
+    unit_height_cm: 0.92,
+    max_capacity: 40,
+    min_threshold: 10,
+    current_stock: 30,
+    last_distance_cm: 17.85,
+    last_reading_at: new Date().toISOString(),
+    status: "Normal",
+  },
+  {
+    id: "med-131",
+    name: "Ceftriaxone Sodium 1g Powder",
+    storage_angle: 131,
+    unit: "vials",
+    empty_distance_cm: 45.0,
+    full_distance_cm: 8.0,
+    unit_height_cm: 0.62,
+    max_capacity: 60,
+    min_threshold: 15,
+    current_stock: 39,
+    last_distance_cm: 21.11,
+    last_reading_at: new Date().toISOString(),
+    status: "Normal",
+  },
+  {
+    id: "med-121",
+    name: "Normal Saline 0.9% IV Bags (500mL)",
+    storage_angle: 121,
+    unit: "bags",
+    empty_distance_cm: 85.0,
+    full_distance_cm: 15.0,
+    unit_height_cm: 2.33,
+    max_capacity: 30,
+    min_threshold: 8,
+    current_stock: 5,
+    last_distance_cm: 74.02,
+    last_reading_at: new Date().toISOString(),
+    status: "Low",
+  },
+];
+
+const state = {
+  // Authentication & Current User
+  currentUser: {
+    id: "pharm-001",
+    email: "pharmacy@coldchain.demo",
+    full_name: "Dr. Vijay (Pharmacy Owner)",
+    role: "pharm", // 'pharm' | 'dist'
+    pharmacy: {
+      id: "pharma-shelf-a",
+      name: "Shelf A Cold Storage",
+      license_number: "DL-2026-PHARM-01",
+      city: "Main Branch",
+      device_uid: "esp32-demo-001",
+    },
+  },
+
+  // Active Navigation Tab
   activeTab: {
-    pharmacy: 'dashboard',
-    distributor: 'dashboard',
-    admin: 'overview'
-  },
-  deviceOnline: true,
-  simulateUncertainReading: false,
-  
-  pharmacyProfile: {
-    id: 'pharma-1',
-    name: 'City Care Pharmacy',
-    license: 'PHARM-8821-NY',
-    city: 'Downtown Medical District, NY',
-    channelToken: 'CCH-992-SECURE',
-    channelStatus: 'Active',
-    privacy: 'Public Directory Listed',
-    tempMin: 2.0,
-    tempMax: 8.0,
-    currentTemp: 3.8,
-    lastUpdate: 'Just now',
-    deviceId: 'ESP8266-NODEMCU-01'
+    pharm: "dashboard", // 'dashboard' | 'inventory' | 'distributors' | 'sensors'
+    dist: "pharmacies", // 'pharmacies' | 'inventory' | 'invitations'
   },
 
-  device: {
-    id: 'ESP8266-NODEMCU-01',
-    assignedPharmacy: 'City Care Pharmacy',
-    status: 'online',
-    ip: '192.168.1.145',
-    mac: 'EC:FA:BC:44:91:0A',
-    firmware: 'v2.4.1 (ESP-IDF)',
-    wifiSsid: 'PharmaColdNet_5G',
-    wifiRssi: '-62 dBm (Excellent)',
-    ultrasonicSensor: 'HC-SR04 (Trig: GPIO14/D5, Echo: GPIO12/D6)',
-    tempSensor: 'DS18B20 1-Wire (Data: GPIO4/D2)',
-    lastSeen: '10 seconds ago',
-    mode: 'Simulated IoT Node (Hardware Ready)'
+  // Pharmacy Inventory & Sensors
+  pharmacyMedicines: [],
+  pharmacyDistributors: [
+    {
+      id: "dist-1",
+      name: "Apex Pharma Distributors",
+      email: "orders@apexpharma.com",
+      status: "accepted",
+      city: "Metro Depot",
+      created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+    },
+    {
+      id: "dist-2",
+      name: "CareLogistics Cold Chain",
+      email: "logistics@carelogistics.com",
+      status: "pending",
+      city: "Regional Hub",
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+    },
+  ],
+  sensorStatus: {
+    device_status: "online",
+    last_reading_at: null,
+    is_stale: false,
+    stale_threshold_seconds: 120,
+    device_id: "esp32-demo-001",
   },
 
-  medicines: [
-    {
-      id: 'med-1',
-      name: 'Insulin Glargine 100 U/mL',
-      unit: 'vials',
-      compartment: 'Rack A - Slot 1',
-      quantity: 42,
-      threshold: 15,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 12.4,
-      confidence: 98,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-2',
-      name: 'Polio Oral Vaccine (bOPV)',
-      unit: 'vials',
-      compartment: 'Rack A - Slot 2',
-      quantity: 12,
-      threshold: 20,
-      status: 'Low',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 34.2,
-      confidence: 95,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-3',
-      name: 'COVID-19 mRNA Vaccine (Pfizer)',
-      unit: 'vials',
-      compartment: 'Ultra-Cold Shelf 1',
-      quantity: 8,
-      threshold: 10,
-      status: 'Low',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 38.5,
-      confidence: 94,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-4',
-      name: 'Oxytocin Injection 10 IU/mL',
-      unit: 'ampoules',
-      compartment: 'Rack B - Slot 1',
-      quantity: 65,
-      threshold: 25,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 9.1,
-      confidence: 99,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-5',
-      name: 'Hepatitis B Vaccine (Recombinant)',
-      unit: 'vials',
-      compartment: 'Rack B - Slot 2',
-      quantity: 18,
-      threshold: 15,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 28.0,
-      confidence: 92,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-6',
-      name: 'Tetanus Toxoid Vaccine',
-      unit: 'ampoules',
-      compartment: 'Rack C - Slot 1',
-      quantity: 5,
-      threshold: 15,
-      status: 'Low',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 41.2,
-      confidence: 91,
-      calibration: { empty: 45.0, full: 8.0 }
-    },
-    {
-      id: 'med-7',
-      name: 'Amoxicillin Clavulanate Suspension',
-      unit: 'bottles',
-      compartment: 'Rack C - Slot 2',
-      quantity: 24,
-      threshold: 10,
-      status: 'Normal',
-      lastMeasurement: '14-Oct-2026 16:15',
-      distance: 21.0,
-      confidence: 82,
-      calibration: { empty: 45.0, full: 8.0 }
-    }
-  ],
+  // Telemetry History from Supabase
+  recentScans: [],
 
-  distributors: [
+  // Distributor View Data
+  accessiblePharmacies: [
     {
-      id: 'dist-1',
-      name: 'MetroMed Wholesale Distribution',
-      license: 'WHL-2024-91',
-      contact: 'Marcus Vance (Logistics Director)',
-      phone: '+1 (555) 234-8901',
-      email: 'm.vance@metromed-supply.com',
-      city: 'Central Logistics Park, NY',
-      status: 'Active'
+      id: "pharma-shelf-a",
+      name: "Shelf A Cold Storage",
+      license_number: "DL-2026-PHARM-01",
+      city: "Main Branch",
+      medicines_count: 4,
+      last_reading_at: new Date().toISOString(),
     },
-    {
-      id: 'dist-2',
-      name: 'PharmaLink Regional Supply Co.',
-      license: 'WHL-2023-45',
-      contact: 'Dr. Sarah Chen',
-      phone: '+1 (555) 456-7890',
-      email: 'schen@pharmalink-cold.org',
-      city: 'Harbor Freight Terminal, NJ',
-      status: 'Active'
-    }
   ],
+  selectedPharmacy: null,
+  selectedPharmacyInventory: [],
+  distributorInvitations: [],
 
-  directoryPharmacies: [
-    {
-      id: 'pharma-1',
-      name: 'City Care Pharmacy',
-      license: 'PHARM-8821-NY',
-      city: 'Downtown Medical District, NY',
-      availability: 'Available for Subscriptions',
-      status: 'Active',
-      hours: '24/7 Cold Chain Ready'
-    },
-    {
-      id: 'pharma-2',
-      name: 'Apex Health Chemist',
-      license: 'PHARM-9042-NY',
-      city: 'North Suburb Clinic Hub, NY',
-      availability: 'Available for Subscriptions',
-      status: 'Active',
-      hours: '08:00 - 22:00'
-    },
-    {
-      id: 'pharma-3',
-      name: 'Metro Well Pharmacy',
-      license: 'PHARM-7719-NJ',
-      city: 'West Valley Transit Hub, NJ',
-      availability: 'Private Access Only',
-      status: 'Active',
-      hours: '09:00 - 21:00'
-    }
-  ],
-
-  subscriptions: [
-    {
-      id: 'sub-1',
-      distributorId: 'dist-1',
-      pharmacyId: 'pharma-1',
-      status: 'approved',
-      requestDate: '2026-10-10',
-      notes: 'Urgent cold chain insulin & vaccine restock monitoring agreement.'
-    },
-    {
-      id: 'sub-2',
-      distributorId: 'dist-1',
-      pharmacyId: 'pharma-2',
-      status: 'pending',
-      requestDate: '2026-10-13',
-      notes: 'Monthly distribution sync for regional clinics.'
-    },
-    {
-      id: 'sub-3',
-      distributorId: 'dist-2',
-      pharmacyId: 'pharma-1',
-      status: 'pending',
-      requestDate: '2026-10-14',
-      notes: 'Emergency cold storage backup channel proposal.'
-    }
-  ],
-
-  alerts: [
-    {
-      id: 'alt-1',
-      pharmacyId: 'pharma-1',
-      title: 'Critical Low Stock: Tetanus Toxoid Vaccine',
-      desc: 'Estimated stock at 5 ampoules (Low threshold: 15 ampoules). Reorder recommended.',
-      severity: 'danger',
-      timestamp: '14-Oct-2026 15:45',
-      unread: true,
-      category: 'stock'
-    },
-    {
-      id: 'alt-2',
-      pharmacyId: 'pharma-1',
-      title: 'Low Stock Warning: Polio Oral Vaccine (bOPV)',
-      desc: 'Estimated stock at 12 vials (Low threshold: 20 vials).',
-      severity: 'warning',
-      timestamp: '14-Oct-2026 14:30',
-      unread: true,
-      category: 'stock'
-    },
-    {
-      id: 'alt-3',
-      pharmacyId: 'pharma-1',
-      title: 'Cold Storage Stable at 3.8°C',
-      desc: 'Temperature is within configured 2.0°C - 8.0°C range.',
-      severity: 'info',
-      timestamp: '14-Oct-2026 13:00',
-      unread: false,
-      category: 'temp'
-    },
-    {
-      id: 'alt-4',
-      pharmacyId: 'pharma-1',
-      title: 'Ultrasonic Distance Sensor Calibrated',
-      desc: 'Echo velocity verified against ambient chamber temperature.',
-      severity: 'info',
-      timestamp: '14-Oct-2026 09:15',
-      unread: false,
-      category: 'device'
-    }
-  ],
-
-  temperatureHistory: [
-    { time: '00:00', temp: 3.6 },
-    { time: '02:00', temp: 3.8 },
-    { time: '04:00', temp: 3.7 },
-    { time: '06:00', temp: 4.0 },
-    { time: '08:00', temp: 4.2 },
-    { time: '10:00', temp: 4.1 },
-    { time: '12:00', temp: 4.4 },
-    { time: '14:00', temp: 4.6 },
-    { time: '16:00', temp: 3.8 }
-  ],
-
-  stockHistory: [
-    { day: 'Wed', count: 185 },
-    { day: 'Thu', count: 178 },
-    { day: 'Fri', count: 192 },
-    { day: 'Sat', count: 165 },
-    { day: 'Sun', count: 150 },
-    { day: 'Mon', count: 168 },
-    { day: 'Tue', count: 174 }
-  ],
-
-  accounts: [
-    { id: 'acc-1', name: 'City Care Pharmacy', role: 'Pharmacy', email: 'stock@citycarepharma.org', regDate: '2026-08-14', status: 'Active' },
-    { id: 'acc-2', name: 'Apex Health Chemist', role: 'Pharmacy', email: 'admin@apexhealth.com', regDate: '2026-09-02', status: 'Active' },
-    { id: 'acc-3', name: 'MetroMed Wholesale', role: 'Distributor', email: 'orders@metromed-supply.com', regDate: '2026-07-19', status: 'Active' },
-    { id: 'acc-4', name: 'PharmaLink Regional', role: 'Distributor', email: 'supply@pharmalink-cold.org', regDate: '2026-09-11', status: 'Active' },
-    { id: 'acc-5', name: 'St. Jude Community Meds', role: 'Pharmacy', email: 'lead@stjude-rx.org', regDate: '2026-10-14', status: 'Pending' }
-  ],
-
-  auditLog: [
-    { time: '16:15:22', user: 'ESP8266-01', action: 'Telemetry Sync', details: 'Ultrasonic sweep completed on 7 compartments. Echo confidence 96%.' },
-    { time: '14:32:10', user: 'City Care Admin', action: 'Subscription Updated', details: 'Approved stock access channel for MetroMed Wholesale.' },
-    { time: '12:10:45', user: 'System Watchdog', action: 'Temp Range Check', details: 'Cold storage unit stable at 4.2°C (Bounds: 2.0°C to 8.0°C).' },
-    { time: '09:05:00', user: 'Root Admin', action: 'Account Verification', details: 'Approved registration for PharmaLink Regional Supply.' }
-  ]
+  // Polling Handle
+  realtimeTimer: null,
 };
 
-// State Manager
-let state = loadState();
+// ============================================================================
+// 2. Mathematical Stock Calculation Engine
+// ============================================================================
 
-function loadState() {
-  try {
-    const saved = localStorage.getItem('COLDCHAIN_STATE');
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch (e) {
-    console.error('Error loading state from localStorage:', e);
+/**
+ * Converts ultrasonic distance reading into estimated medicine quantity
+ * using physical compartment geometry:
+ *   Stack Height = empty_distance_cm - measured_distance_cm
+ *   Stock Units  = clamp(0, max_capacity, round(Stack Height / unit_height_cm))
+ */
+function calculateStockFromReading(measuredDistanceCm, angle, medicineConfig) {
+  if (
+    measuredDistanceCm === null ||
+    measuredDistanceCm === undefined ||
+    measuredDistanceCm < 0
+  ) {
+    return {
+      valid: false,
+      quantity: medicineConfig.current_stock || 0,
+      status: "Invalid",
+      confidence: 0,
+      stack_height_cm: 0.0,
+      error: "Missing or invalid sensor reading.",
+    };
   }
-  return JSON.parse(JSON.stringify(INITIAL_DATA));
-}
 
-function saveState() {
-  try {
-    localStorage.setItem('COLDCHAIN_STATE', JSON.stringify(state));
-  } catch (e) {
-    console.error('Error saving state:', e);
+  const emptyDist = Number(medicineConfig.empty_distance_cm) || 45.0;
+  const fullDist = Number(medicineConfig.full_distance_cm) || 8.0;
+  const maxCapacity = Number(medicineConfig.max_capacity) || 50;
+  const minThreshold = Number(medicineConfig.min_threshold) || 15;
+  const priorStock = Number(medicineConfig.current_stock) || 0;
+  let unitHeight = Number(medicineConfig.unit_height_cm) || 0.0;
+
+  const stackSpan = emptyDist - fullDist;
+  if (stackSpan <= 0) {
+    return {
+      valid: false,
+      quantity: priorStock,
+      status: "Config Error",
+      confidence: 0,
+      stack_height_cm: 0.0,
+      error: "Empty distance must exceed full distance.",
+    };
   }
-}
 
-function resetAllData() {
-  if (confirm('Reset all demo state to default sample data?')) {
-    state = JSON.parse(JSON.stringify(INITIAL_DATA));
-    saveState();
-    showToast('Demo data reset to initial prototype state.', 'info');
-    renderApp();
+  if (unitHeight <= 0 && maxCapacity > 0) {
+    unitHeight = stackSpan / maxCapacity;
   }
-}
 
-// ==========================================================================
-// 2. Navigation, Role Switching & Tab Management
-// ==========================================================================
-
-function switchRole(role) {
-  state.currentRole = role;
-  saveState();
-  renderApp();
-  showToast(`Switched view to ${getRoleLabel(role)}`, 'info');
-}
-
-function switchTab(tabId) {
-  state.activeTab[state.currentRole] = tabId;
-  saveState();
-  renderApp();
-}
-
-function getRoleLabel(role) {
-  switch (role) {
-    case 'pharmacy': return 'Pharmacy Staff (City Care Pharmacy)';
-    case 'distributor': return 'Medicine Distributor (MetroMed Wholesale)';
-    case 'admin': return 'Administrator Portal';
-    case 'landing': return 'Public Directory & Landing';
-    default: return role;
+  // Detect out-of-range / empty floor reading
+  if (measuredDistanceCm > emptyDist + 4.0) {
+    return {
+      valid: false,
+      quantity: 0,
+      status: "Out of Stock",
+      confidence: 85,
+      stack_height_cm: 0.0,
+      error: `Distance ${measuredDistanceCm.toFixed(1)}cm reaches empty container floor.`,
+    };
   }
-}
 
-function toggleDeviceOnline() {
-  state.deviceOnline = !state.deviceOnline;
-  state.device.status = state.deviceOnline ? 'online' : 'offline';
-  
-  if (!state.deviceOnline) {
-    state.alerts.unshift({
-      id: 'alt-' + Date.now(),
-      pharmacyId: 'pharma-1',
-      title: 'ESP8266 IoT Node Offline',
-      desc: 'Gateway lost heartbeat connection with cold-storage chamber sensors.',
-      severity: 'danger',
-      timestamp: 'Just now',
-      unread: true,
-      category: 'device'
-    });
-    showToast('Simulated IoT Device is now OFFLINE', 'danger');
+  // Detect anomalous obstruction closer than full stack
+  if (measuredDistanceCm < fullDist - 3.0) {
+    return {
+      valid: false,
+      quantity: priorStock,
+      status: "Uncertain",
+      confidence: 40,
+      stack_height_cm: Math.max(0, emptyDist - measuredDistanceCm),
+      error: `Obstruction detected closer than full container.`,
+    };
+  }
+
+  const stackHeight = Math.max(0, emptyDist - measuredDistanceCm);
+  let calculatedUnits = 0;
+  if (unitHeight > 0) {
+    calculatedUnits = Math.round(stackHeight / unitHeight);
   } else {
-    showToast('Simulated IoT Device is ONLINE', 'success');
+    calculatedUnits = Math.round((stackHeight / stackSpan) * maxCapacity);
   }
-  
-  saveState();
-  renderApp();
+  calculatedUnits = Math.max(0, Math.min(maxCapacity, calculatedUnits));
+
+  let statusLabel = "Normal";
+  if (calculatedUnits === 0) {
+    statusLabel = "Out of Stock";
+  } else if (calculatedUnits <= minThreshold) {
+    statusLabel = "Low";
+  }
+
+  return {
+    valid: true,
+    quantity: calculatedUnits,
+    status: statusLabel,
+    confidence: 95,
+    stack_height_cm: parseFloat(stackHeight.toFixed(2)),
+    error: null,
+  };
 }
 
-// ==========================================================================
-// 3. Main Render Router
-// ==========================================================================
+// ============================================================================
+// 3. Supabase Data Ingestion & Realtime Sync
+// ============================================================================
+
+/**
+ * Loads medicine definitions from localStorage or fallback defaults
+ */
+function loadStoredMedicines() {
+  const stored = localStorage.getItem("PHARMACY_MEDICINES");
+  if (stored) {
+    try {
+      state.pharmacyMedicines = JSON.parse(stored);
+      return;
+    } catch (e) {
+      console.warn("Failed to parse stored medicines:", e);
+    }
+  }
+  state.pharmacyMedicines = [...DEFAULT_MEDICINES];
+  localStorage.setItem("PHARMACY_MEDICINES", JSON.stringify(state.pharmacyMedicines));
+}
+
+/**
+ * Queries Supabase for live scans, readings, and device heartbeats
+ */
+async function fetchLiveTelemetryFromSupabase() {
+  const sb = getSupabase();
+  if (!sb) {
+    console.warn("Supabase client is not initialized.");
+    return;
+  }
+
+  try {
+    // 1. Query latest scans and nested distance_readings
+    const { data: scans, error: scansError } = await sb
+      .from("scans")
+      .select(`
+        id,
+        device_id,
+        scan_id,
+        scan_sequence,
+        angles_scanned,
+        valid_readings_count,
+        invalid_readings_count,
+        scan_duration_ms,
+        created_at,
+        distance_readings (
+          id,
+          scan_id,
+          device_id,
+          angle,
+          distance_cm,
+          is_valid,
+          samples_count,
+          created_at
+        )
+      `)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (scansError) {
+      console.error("Error fetching scans from Supabase:", scansError);
+      return;
+    }
+
+    // 2. Query device heartbeat
+    const { data: device } = await sb
+      .from("devices")
+      .select("*")
+      .eq("device_id", "esp32-demo-001")
+      .maybeSingle();
+
+    if (scans && scans.length > 0) {
+      state.recentScans = scans;
+      const latestScan = scans[0];
+      const readings = latestScan.distance_readings || [];
+
+      // Update Heartbeat status
+      const lastTimestamp = latestScan.created_at || (device ? device.last_seen_at : null);
+      state.sensorStatus.last_reading_at = lastTimestamp;
+
+      const elapsedMs = Date.now() - new Date(lastTimestamp).getTime();
+      state.sensorStatus.is_stale = elapsedMs > 120000; // Stale if no reading for 2 mins
+      state.sensorStatus.device_status = state.sensorStatus.is_stale ? "offline" : "online";
+
+      // 3. Map readings directly into each configured medicine slot
+      state.pharmacyMedicines.forEach((m) => {
+        // Find matching reading by angle (with tolerance of +/- 3 degrees)
+        const reading = readings.find(
+          (r) => Math.abs(r.angle - m.storage_angle) <= 3
+        );
+
+        if (reading && reading.is_valid && reading.distance_cm !== null) {
+          const calc = calculateStockFromReading(reading.distance_cm, m.storage_angle, m);
+          m.current_stock = calc.quantity;
+          m.last_distance_cm = reading.distance_cm;
+          m.last_reading_at = latestScan.created_at;
+          m.status = calc.status;
+        } else if (reading && !reading.is_valid) {
+          m.status = "Invalid";
+        }
+      });
+
+      // Save updated stock to storage
+      localStorage.setItem("PHARMACY_MEDICINES", JSON.stringify(state.pharmacyMedicines));
+
+      // Update DOM
+      const modal = document.getElementById("modal-container");
+      if (modal && modal.classList.contains("open")) {
+        updatePharmacyDOMInPlace();
+      } else {
+        renderApp();
+      }
+    }
+  } catch (err) {
+    console.error("Telemetry sync exception:", err);
+  }
+}
+
+/**
+ * Initializes Supabase Realtime channel subscription and periodic polling
+ */
+function initRealtimeSync() {
+  loadStoredMedicines();
+  fetchLiveTelemetryFromSupabase();
+
+  const sb = getSupabase();
+  if (sb) {
+    // Subscribe to Postgres changes on 'scans' table
+    sb.channel("live-telemetry-feed")
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "scans" },
+        () => {
+          fetchLiveTelemetryFromSupabase();
+          showToast("⚡ New IoT scan received from ESP32!", "info");
+        }
+      )
+      .subscribe();
+  }
+
+  // Periodic polling fallback every 8 seconds
+  clearInterval(state.realtimeTimer);
+  state.realtimeTimer = setInterval(() => {
+    fetchLiveTelemetryFromSupabase();
+  }, 8000);
+}
+
+// ============================================================================
+// 4. In-Place DOM Updates & Formatting Helpers
+// ============================================================================
+
+function updatePharmacyDOMInPlace() {
+  const totalMedsEl = document.getElementById("stat-total-meds");
+  const totalUnitsEl = document.getElementById("stat-total-units");
+  const lowStockEl = document.getElementById("stat-low-stock");
+  const lastUpdateEl = document.getElementById("stat-last-update");
+  const staleBannerEl = document.getElementById("pharm-stale-banner");
+
+  const meds = state.pharmacyMedicines;
+  if (totalMedsEl) totalMedsEl.innerText = meds.length;
+  if (totalUnitsEl)
+    totalUnitsEl.innerText = meds.reduce((sum, m) => sum + (m.current_stock || 0), 0);
+  if (lowStockEl)
+    lowStockEl.innerText = meds.filter((m) => m.current_stock <= m.min_threshold).length;
+  if (lastUpdateEl)
+    lastUpdateEl.innerText = formatTimestamp(state.sensorStatus.last_reading_at);
+
+  if (staleBannerEl) {
+    staleBannerEl.style.display = state.sensorStatus.is_stale ? "flex" : "none";
+  }
+
+  // Update inventory table rows
+  meds.forEach((m) => {
+    const stockCell = document.getElementById(`med-stock-${m.id}`);
+    const badgeCell = document.getElementById(`med-badge-${m.id}`);
+    const timeCell = document.getElementById(`med-time-${m.id}`);
+    if (stockCell) stockCell.innerText = `${m.current_stock} ${m.unit}`;
+    if (badgeCell) {
+      badgeCell.className = `badge ${getStatusBadgeClass(m.status)}`;
+      badgeCell.innerText = m.status;
+    }
+    if (timeCell) timeCell.innerText = formatTimestamp(m.last_reading_at);
+  });
+}
+
+function escapeHtml(str) {
+  if (str === null || str === undefined) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function formatTimestamp(isoString) {
+  if (!isoString) return "No telemetry yet";
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return "Invalid date";
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function getStatusBadgeClass(status) {
+  switch (status) {
+    case "Normal":
+      return "badge-success";
+    case "Low":
+      return "badge-warning";
+    case "Out of Stock":
+      return "badge-danger";
+    case "Invalid":
+      return "badge-danger";
+    default:
+      return "badge-info";
+  }
+}
+
+// ============================================================================
+// 5. Router & Main Render
+// ============================================================================
 
 function renderApp() {
-  const container = document.getElementById('app-root');
-  if (!container) return;
+  const root = document.getElementById("app-root");
+  if (!root) return;
 
-  const currentRole = state.currentRole;
-  
-  // Render App Structure
-  container.innerHTML = `
-    <!-- Global Header -->
+  if (state.currentUser.role === "pharm") {
+    root.innerHTML = renderPharmacyApp();
+  } else if (state.currentUser.role === "dist") {
+    root.innerHTML = renderDistributorApp();
+  }
+
+  // Inject modal & toast containers
+  root.innerHTML += `
+    <div id="modal-container" class="modal-backdrop"></div>
+    <div id="toast-container" class="toast-container"></div>
+  `;
+}
+
+// ============================================================================
+// 6. Pharmacy Website Interface
+// ============================================================================
+
+function renderPharmacyApp() {
+  const user = state.currentUser;
+  const pharma = user.pharmacy || { name: "Pharmacy Cold Storage" };
+  const tab = state.activeTab.pharm;
+
+  return `
+    <!-- Top Header -->
     <header class="app-header">
       <div class="header-inner">
-        <div class="brand-wrapper" onclick="switchRole('landing')">
-          <div class="brand-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-            </svg>
-          </div>
+        <div class="brand-wrapper">
+          <div class="brand-icon">❄️</div>
           <div>
             <div class="brand-title">
-              ColdChain IoT
-              <span class="brand-tag">Prototype</span>
+              ${escapeHtml(pharma.name)}
+              <span class="brand-tag">Pharmacy</span>
             </div>
-            <div style="font-size:0.7rem; color:var(--text-muted);">Cloud Pharmacy Cold-Storage Platform</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">
+              ColdChain IoT • Device: <code>${escapeHtml(pharma.device_uid)}</code> • Live Supabase Ingestion
+            </div>
           </div>
         </div>
 
-        <!-- Role Switcher Pills -->
-        <div class="role-switcher-container">
-          <button class="role-btn ${currentRole === 'pharmacy' ? 'active' : ''}" onclick="switchRole('pharmacy')">
-            🏥 Pharmacy Portal
-          </button>
-          <button class="role-btn role-distributor ${currentRole === 'distributor' ? 'active' : ''}" onclick="switchRole('distributor')">
-            🚚 Distributor Portal
-          </button>
-          <button class="role-btn role-admin ${currentRole === 'admin' ? 'active' : ''}" onclick="switchRole('admin')">
-            🛡️ Admin Portal
-          </button>
-          <button class="role-btn ${currentRole === 'landing' ? 'active' : ''}" onclick="switchRole('landing')">
-            🌐 Landing & Directory
-          </button>
-        </div>
-
-        <!-- Device Status & Global Controls -->
         <div class="header-actions">
-          <div class="iot-status-badge ${state.deviceOnline ? '' : 'offline'}" onclick="toggleDeviceOnline()" title="Click to toggle Simulated Online/Offline state">
+          <div class="iot-status-badge ${state.sensorStatus.is_stale ? "offline" : ""}" title="IoT Ultrasonic Transceiver Status">
             <span class="pulse-dot"></span>
-            <span>ESP8266: ${state.deviceOnline ? 'Online (Demo)' : 'Offline'}</span>
+            <span>${state.sensorStatus.is_stale ? "⚠️ Sensor Stale / Standalone" : "🟢 Sensor Active (60s Telemetry)"}</span>
           </div>
 
-          <button class="btn btn-outline btn-sm" onclick="resetAllData()" title="Reset mock data to factory state">
-            🔄 Reset Data
-          </button>
+          <!-- Role Switcher Toggle -->
+          <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-muted); padding:0.25rem 0.5rem; border-radius:var(--radius-sm);">
+            <span style="font-size:0.75rem; color:var(--text-muted);">Role:</span>
+            <button class="btn btn-sm ${user.role === 'pharm' ? 'btn-primary' : 'btn-outline'}" onclick="switchRole('pharm')">Pharmacy</button>
+            <button class="btn btn-sm ${user.role === 'dist' ? 'btn-primary' : 'btn-outline'}" onclick="switchRole('dist')">Distributor</button>
+          </div>
+
+          <div style="font-size:0.8125rem; font-weight:600; color:var(--text-main);">
+            ${escapeHtml(user.full_name)}
+          </div>
         </div>
       </div>
     </header>
 
-    <!-- Main Workspace Container -->
     <div class="app-container">
-      ${currentRole === 'landing' ? renderLandingPage() : renderPortalLayout()}
-    </div>
-
-    <!-- Modal Backdrop Container -->
-    <div id="modal-container" class="modal-backdrop"></div>
-
-    <!-- Toast Notifications Container -->
-    <div id="toast-container" class="toast-container"></div>
-  `;
-
-  // Draw any charts after DOM nodes are injected
-  requestAnimationFrame(() => {
-    initCharts();
-  });
-}
-
-function renderPortalLayout() {
-  const role = state.currentRole;
-  const activeTab = state.activeTab[role] || 'dashboard';
-
-  let navItems = [];
-  if (role === 'pharmacy') {
-    const unreadAlerts = state.alerts.filter(a => a.unread).length;
-    navItems = [
-      { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-      { id: 'inventory', label: 'Medicine Inventory', icon: '💊' },
-      { id: 'scanning', label: 'Ultrasonic Scanning', icon: '📡' },
-      { id: 'temperature', label: 'Cold-Storage Temp', icon: '❄️' },
-      { id: 'subscriptions', label: 'Distributor Access', icon: '🤝' },
-      { id: 'alerts', label: 'Alerts & Warnings', icon: '🔔', badge: unreadAlerts || null },
-      { id: 'channel', label: 'Channel Settings', icon: '⚙️' },
-      { id: 'device', label: 'IoT Device & Sensors', icon: '📟' }
-    ];
-  } else if (role === 'distributor') {
-    navItems = [
-      { id: 'dashboard', label: 'Distributor Overview', icon: '📊' },
-      { id: 'directory', label: 'Pharmacy Directory', icon: '🏥' },
-      { id: 'subscriptions', label: 'Subscription Requests', icon: '🔗' },
-      { id: 'stock', label: 'Pharmacy Stock Details', icon: '📦' },
-      { id: 'alerts', label: 'Subscribed Alerts', icon: '🔔' },
-      { id: 'profile', label: 'Distributor Profile', icon: '🏢' }
-    ];
-  } else if (role === 'admin') {
-    const pendingCount = state.accounts.filter(a => a.status === 'Pending').length;
-    navItems = [
-      { id: 'overview', label: 'Platform Overview', icon: '📊' },
-      { id: 'accounts', label: 'Account Management', icon: '👥', badge: pendingCount || null },
-      { id: 'devices', label: 'IoT Device Fleet', icon: '📡' },
-      { id: 'activity', label: 'System Audit Log', icon: '📜' }
-    ];
-  }
-
-  return `
-    <aside class="app-sidebar">
-      <div class="sidebar-section-title">${getRoleSectionTitle(role)}</div>
-      <ul class="nav-list">
-        ${navItems.map(item => `
+      <!-- Sidebar Navigation -->
+      <aside class="app-sidebar">
+        <div class="sidebar-section-title">Pharmacy Management</div>
+        <ul class="nav-list">
           <li>
-            <a class="nav-link ${activeTab === item.id ? 'active' : ''}" onclick="switchTab('${item.id}')">
-              <span class="nav-item-left">
-                <span>${item.icon}</span>
-                <span>${item.label}</span>
-              </span>
-              ${item.badge ? `<span class="nav-badge">${item.badge}</span>` : ''}
+            <a class="nav-link ${tab === "dashboard" ? "active" : ""}" onclick="switchPharmacyTab('dashboard')">
+              <span class="nav-item-left"><span>📊</span><span>Dashboard</span></span>
             </a>
           </li>
-        `).join('')}
-      </ul>
+          <li>
+            <a class="nav-link ${tab === "inventory" ? "active" : ""}" onclick="switchPharmacyTab('inventory')">
+              <span class="nav-item-left"><span>💊</span><span>Inventory & Angles</span></span>
+              ${state.pharmacyMedicines.length ? `<span class="nav-badge">${state.pharmacyMedicines.length}</span>` : ""}
+            </a>
+          </li>
+          <li>
+            <a class="nav-link ${tab === "distributors" ? "active" : ""}" onclick="switchPharmacyTab('distributors')">
+              <span class="nav-item-left"><span>🤝</span><span>Distributor Access</span></span>
+            </a>
+          </li>
+          <li>
+            <a class="nav-link ${tab === "sensors" ? "active" : ""}" onclick="switchPharmacyTab('sensors')">
+              <span class="nav-item-left"><span>📟</span><span>IoT Transceiver</span></span>
+              <span class="nav-badge" style="background:#10b981; color:#fff;">LIVE</span>
+            </a>
+          </li>
+        </ul>
 
-      <div class="sidebar-footer">
-        <div class="sidebar-user-card">
-          <div class="user-avatar">${getAvatarInitials(role)}</div>
-          <div class="user-info">
-            <div class="user-name">${getCurrentUserName(role)}</div>
-            <div class="user-role">${getRoleBadgeLabel(role)}</div>
+        <div class="sidebar-footer">
+          <div class="sidebar-user-card">
+            <div class="user-avatar">RX</div>
+            <div class="user-info">
+              <div class="user-name">${escapeHtml(user.full_name)}</div>
+              <div class="user-role">Pharmacy Owner</div>
+            </div>
           </div>
         </div>
-      </div>
-    </aside>
+      </aside>
 
-    <main class="app-main">
-      <div class="demo-banner">
-        <div class="demo-banner-content">
-          <span>⚠️ <strong>Interactive Prototype:</strong> All readings, ultrasonic scans, and IoT communications are client-side simulated demonstrations.</span>
+      <!-- Main Content -->
+      <main class="app-main">
+        <div id="pharm-stale-banner" class="warning-callout" style="display:${state.sensorStatus.is_stale ? "flex" : "none"}; margin-bottom:1.25rem;">
+          <div>⚠️</div>
+          <div>
+            <strong>Sensor Connection Notice:</strong> No live ultrasonic telemetry received within the last 120 seconds. Displayed inventory represents the latest stored readings.
+          </div>
         </div>
-        <button class="btn btn-outline btn-sm" onclick="switchRole('landing')">Directory View</button>
-      </div>
 
-      ${renderActiveTabContent(role, activeTab)}
-    </main>
+        ${renderActivePharmacyTab(tab)}
+      </main>
+    </div>
   `;
 }
 
-function getRoleSectionTitle(role) {
-  if (role === 'pharmacy') return 'Pharmacy Portal Navigation';
-  if (role === 'distributor') return 'Wholesale Distributor Portal';
-  if (role === 'admin') return 'Administration Console';
-  return 'Navigation';
+function switchPharmacyTab(tabId) {
+  state.activeTab.pharm = tabId;
+  renderApp();
 }
 
-function getAvatarInitials(role) {
-  if (role === 'pharmacy') return 'CC';
-  if (role === 'distributor') return 'MM';
-  if (role === 'admin') return 'SA';
-  return 'U';
+function switchRole(role) {
+  state.currentUser.role = role;
+  renderApp();
 }
 
-function getCurrentUserName(role) {
-  if (role === 'pharmacy') return state.pharmacyProfile.name;
-  if (role === 'distributor') return state.distributors[0].name;
-  if (role === 'admin') return 'System Administrator';
-  return 'Guest Visitor';
-}
-
-function getRoleBadgeLabel(role) {
-  if (role === 'pharmacy') return 'Pharmacy Staff • Unit 01';
-  if (role === 'distributor') return 'Medicine Wholesaler';
-  if (role === 'admin') return 'Superuser Role';
-  return 'Visitor';
-}
-
-// ==========================================================================
-// 4. Content Renderers by Role and Tab
-// ==========================================================================
-
-function renderActiveTabContent(role, tab) {
-  if (role === 'pharmacy') {
-    switch (tab) {
-      case 'dashboard': return renderPharmacyDashboard();
-      case 'inventory': return renderPharmacyInventory();
-      case 'scanning': return renderStockScanning();
-      case 'temperature': return renderColdStorageMonitoring();
-      case 'subscriptions': return renderPharmacySubscriptions();
-      case 'alerts': return renderPharmacyAlerts();
-      case 'channel': return renderPharmacyChannel();
-      case 'device': return renderDeviceSettings();
-      default: return renderPharmacyDashboard();
-    }
-  } else if (role === 'distributor') {
-    switch (tab) {
-      case 'dashboard': return renderDistributorDashboard();
-      case 'directory': return renderDistributorDirectory();
-      case 'subscriptions': return renderDistributorSubscriptions();
-      case 'stock': return renderDistributorStock();
-      case 'alerts': return renderDistributorAlerts();
-      case 'profile': return renderDistributorProfile();
-      default: return renderDistributorDashboard();
-    }
-  } else if (role === 'admin') {
-    switch (tab) {
-      case 'overview': return renderAdminOverview();
-      case 'accounts': return renderAdminAccounts();
-      case 'devices': return renderAdminDevices();
-      case 'activity': return renderAdminActivity();
-      default: return renderAdminOverview();
-    }
+function renderActivePharmacyTab(tab) {
+  switch (tab) {
+    case "dashboard":
+      return renderPharmacyDashboard();
+    case "inventory":
+      return renderPharmacyInventory();
+    case "distributors":
+      return renderPharmacyDistributors();
+    case "sensors":
+      return renderPharmacySensors();
+    default:
+      return renderPharmacyDashboard();
   }
-  return `<div>Tab not found</div>`;
 }
 
-// ==========================================================================
-// 5. Pharmacy Portal Views
-// ==========================================================================
+// ============================================================================
+// 7. Pharmacy Dashboard View
+// ============================================================================
 
 function renderPharmacyDashboard() {
-  const totalMeds = state.medicines.length;
-  const totalUnits = state.medicines.reduce((sum, m) => sum + m.quantity, 0);
-  const lowStockCount = state.medicines.filter(m => m.quantity <= m.threshold).length;
-  const pendingSubs = state.subscriptions.filter(s => s.status === 'pending').length;
+  const meds = state.pharmacyMedicines;
+  const totalMeds = meds.length;
+  const totalUnits = meds.reduce((sum, m) => sum + (m.current_stock || 0), 0);
+  const lowStock = meds.filter((m) => m.current_stock <= m.min_threshold).length;
+  const lastUpdate = formatTimestamp(state.sensorStatus.last_reading_at);
 
   return `
     <div class="page-header">
       <div>
-        <h1 class="page-title">Pharmacy Cold-Storage Dashboard</h1>
-        <p class="page-desc">${state.pharmacyProfile.name} • License: ${state.pharmacyProfile.license}</p>
+        <h1 class="page-title">Cold-Storage Inventory Overview</h1>
+        <p class="page-desc">Automated ultrasonic inventory calculated from live Supabase sensor scans</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-outline" onclick="switchTab('scanning')">
-          📡 Request Stock Scan
+        <button class="btn btn-outline" onclick="fetchLiveTelemetryFromSupabase()">
+          🔄 Fetch Live Readings
         </button>
         <button class="btn btn-primary" onclick="openAddMedicineModal()">
-          + Add Medicine
+          + Register Medicine Slot
         </button>
       </div>
     </div>
@@ -637,1713 +662,223 @@ function renderPharmacyDashboard() {
     <div class="metrics-grid">
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Registered Medicines</span>
+          <span class="metric-title">Configured Medicines</span>
           <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">💊</div>
         </div>
-        <div class="metric-value">${totalMeds}</div>
-        <div class="metric-sub">Across 6 Storage Racks</div>
+        <div class="metric-value" id="stat-total-meds">${totalMeds}</div>
+        <div class="metric-sub">Assigned to fixed servo angles</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Estimated Stock Units</span>
+          <span class="metric-title">Calculated Stock Units</span>
           <div class="metric-icon-box" style="background:#d1fae5; color:#065f46;">📦</div>
         </div>
-        <div class="metric-value">${totalUnits}</div>
-        <div class="metric-sub positive">Via HC-SR04 Ultrasonic Sonar</div>
+        <div class="metric-value" id="stat-total-units">${totalUnits}</div>
+        <div class="metric-sub positive">Real-time depth conversion</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Low-Stock Items</span>
+          <span class="metric-title">Low Stock Reorders</span>
           <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">⚠️</div>
         </div>
-        <div class="metric-value" style="color:var(--danger);">${lowStockCount}</div>
-        <div class="metric-sub danger">Requires distributor restock</div>
+        <div class="metric-value" id="stat-low-stock" style="color:var(--danger);">${lowStock}</div>
+        <div class="metric-sub danger">At or below configured threshold</div>
       </div>
 
       <div class="metric-card">
         <div class="metric-header">
-          <span class="metric-title">Chamber Temperature</span>
-          <div class="metric-icon-box" style="background:#ccfbf1; color:#0f766e;">❄️</div>
-        </div>
-        <div class="metric-value">${state.pharmacyProfile.currentTemp}°C</div>
-        <div class="metric-sub positive">Configured: ${state.pharmacyProfile.tempMin}°C - ${state.pharmacyProfile.tempMax}°C</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Distributor Requests</span>
-          <div class="metric-icon-box" style="background:#fef3c7; color:#92400e;">🤝</div>
-        </div>
-        <div class="metric-value">${pendingSubs}</div>
-        <div class="metric-sub warning">Awaiting stock channel approval</div>
-      </div>
-    </div>
-
-    <!-- Charts Row -->
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <span>❄️ Cold-Storage Temperature Curve (24h)</span>
-          </div>
-          <span class="badge badge-success">Target: 2°C - 8°C</span>
-        </div>
-        <div class="card-body">
-          <div class="chart-container">
-            <canvas id="tempChart" class="mini-chart"></canvas>
-          </div>
-          <div class="chart-legend">
-            <div class="legend-item"><span class="legend-color" style="background:#0284c7;"></span> DS18B20 Temp (°C)</div>
-            <div class="legend-item"><span class="legend-color" style="background:#10b981;"></span> Safe Boundary</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title">
-            <span>📊 Weekly Total Stock History</span>
-          </div>
-          <span class="badge badge-info">7-Day Aggregation</span>
-        </div>
-        <div class="card-body">
-          <div class="chart-container">
-            <canvas id="stockChart" class="mini-chart"></canvas>
-          </div>
-          <div class="chart-legend">
-            <div class="legend-item"><span class="legend-color" style="background:#0d9488;"></span> Estimated Inventory Volume</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Status & Alert Preview -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <span>🚨 Recent Cold-Storage Alerts</span>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="switchTab('alerts')">View All Alerts</button>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Severity</th>
-              <th>Alert Details</th>
-              <th>Category</th>
-              <th>Timestamp</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.alerts.slice(0, 3).map(a => `
-              <tr>
-                <td>
-                  <span class="badge badge-${a.severity}">
-                    ${a.severity.toUpperCase()}
-                  </span>
-                </td>
-                <td>
-                  <strong>${a.title}</strong>
-                  <div style="font-size:0.75rem; color:var(--text-muted);">${a.desc}</div>
-                </td>
-                <td>${a.category}</td>
-                <td>${a.timestamp}</td>
-                <td>
-                  <button class="btn btn-outline btn-sm" onclick="markAlertRead('${a.id}')">
-                    ${a.unread ? 'Mark Read' : 'Acknowledged'}
-                  </button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function renderPharmacyInventory() {
-  const searchTerm = (document.getElementById('inventory-search')?.value || '').toLowerCase();
-  const filterStatus = document.getElementById('inventory-filter')?.value || 'all';
-
-  let filtered = state.medicines.filter(m => {
-    const matchesSearch = m.name.toLowerCase().includes(searchTerm) || m.compartment.toLowerCase().includes(searchTerm);
-    if (!matchesSearch) return false;
-    if (filterStatus === 'low') return m.quantity <= m.threshold;
-    if (filterStatus === 'normal') return m.quantity > m.threshold && m.confidence >= 80;
-    if (filterStatus === 'uncertain') return m.confidence < 80 || m.status === 'Uncertain';
-    return true;
-  });
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Medicine Cold-Storage Inventory</h1>
-        <p class="page-desc">Real-time ultrasonic distance sensor estimates calibrated by medicine chamber height</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="switchTab('scanning')">
-          📡 Run On-Demand Ultrasonic Scan
-        </button>
-        <button class="btn btn-primary" onclick="openAddMedicineModal()">
-          + Add Medicine
-        </button>
-      </div>
-    </div>
-
-    <div class="info-callout">
-      <div style="font-size:1.1rem;">💡</div>
-      <div>
-        <strong>Ultrasonic Estimation Methodology:</strong> HC-SR04 sonar pulses measure the air column height between the shelf sensor and the top of the medicine container stack. Calibrated formulas convert distance into estimated stock units.
-      </div>
-    </div>
-
-    <!-- Table Toolbar -->
-    <div class="table-toolbar">
-      <div class="table-search-group">
-        <input type="text" id="inventory-search" class="input-search" placeholder="Search medicine or compartment..." value="${searchTerm}" oninput="renderPharmacyInventoryOnly()">
-        <select id="inventory-filter" class="filter-select" onchange="renderPharmacyInventoryOnly()">
-          <option value="all" ${filterStatus === 'all' ? 'selected' : ''}>All Stock Statuses</option>
-          <option value="low" ${filterStatus === 'low' ? 'selected' : ''}>Low Stock Items</option>
-          <option value="normal" ${filterStatus === 'normal' ? 'selected' : ''}>Normal Stock</option>
-          <option value="uncertain" ${filterStatus === 'uncertain' ? 'selected' : ''}>Uncertain / Low Confidence</option>
-        </select>
-      </div>
-      <div style="font-size:0.8125rem; color:var(--text-muted);">
-        Showing <strong>${filtered.length}</strong> of ${state.medicines.length} medicines
-      </div>
-    </div>
-
-    <!-- Inventory Table -->
-    <div class="table-responsive" id="inventory-table-container">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Medicine Name</th>
-            <th>Unit</th>
-            <th>Compartment</th>
-            <th>Estimated Qty</th>
-            <th>Low Threshold</th>
-            <th>Stock Status</th>
-            <th>Echo Distance</th>
-            <th>Confidence</th>
-            <th>Last Read</th>
-            <th style="text-align:right;">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${filtered.length === 0 ? `
-            <tr>
-              <td colspan="10">
-                <div class="empty-state">
-                  <div class="empty-state-title">No medicines match filter criteria</div>
-                  <div class="empty-state-desc">Try clearing search filters or add a new medicine to cold storage.</div>
-                  <button class="btn btn-primary btn-sm" onclick="openAddMedicineModal()">+ Add New Medicine</button>
-                </div>
-              </td>
-            </tr>
-          ` : filtered.map(m => {
-            const isLow = m.quantity <= m.threshold;
-            const isUncertain = m.confidence < 80 || m.status === 'Uncertain';
-            return `
-              <tr>
-                <td><strong>${m.name}</strong></td>
-                <td><span class="badge badge-neutral">${m.unit}</span></td>
-                <td><code>${m.compartment}</code></td>
-                <td>
-                  <strong style="font-size:1rem; color:${isLow ? 'var(--danger)' : 'var(--text-main)'};">
-                    ${m.quantity}
-                  </strong>
-                </td>
-                <td>${m.threshold}</td>
-                <td>
-                  ${isUncertain ? '<span class="badge badge-warning">Uncertain</span>' : 
-                    isLow ? '<span class="badge badge-danger">Low Stock</span>' : 
-                    '<span class="badge badge-success">Optimal</span>'}
-                </td>
-                <td>${m.distance ? m.distance.toFixed(1) + ' cm' : 'N/A'}</td>
-                <td>
-                  <span style="font-weight:600; color:${m.confidence >= 90 ? 'var(--success-text)' : 'var(--warning-text)'};">
-                    ${m.confidence}%
-                  </span>
-                </td>
-                <td style="font-size:0.75rem; color:var(--text-muted);">${m.lastMeasurement}</td>
-                <td style="text-align:right;">
-                  <button class="btn btn-outline btn-sm" onclick="openEditMedicineModal('${m.id}')" title="Edit Medicine">✏️</button>
-                  <button class="btn btn-danger-outline btn-sm" onclick="deleteMedicine('${m.id}')" title="Remove Medicine">🗑️</button>
-                </td>
-              </tr>
-            `;
-          }).join('')}
-        </tbody>
-      </table>
-    </div>
-  `;
-}
-
-function renderPharmacyInventoryOnly() {
-  const main = document.querySelector('.app-main');
-  if (main && state.activeTab.pharmacy === 'inventory') {
-    main.innerHTML = `
-      <div class="demo-banner">
-        <span>⚠️ <strong>Interactive Prototype:</strong> All readings, ultrasonic scans, and IoT communications are client-side simulated demonstrations.</span>
-        <button class="btn btn-outline btn-sm" onclick="switchRole('landing')">Directory View</button>
-      </div>
-      ${renderPharmacyInventory()}
-    `;
-  }
-}
-
-// ==========================================================================
-// 6. Stock Scanning (Ultrasonic On-Demand Trigger)
-// ==========================================================================
-
-function renderStockScanning() {
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">On-Demand Ultrasonic Stock Scanning</h1>
-        <p class="page-desc">Simulated hardware interrogation over ESP8266 Wi-Fi link</p>
-      </div>
-      <div class="page-actions">
-        <label style="display:flex; align-items:center; gap:0.4rem; font-size:0.8125rem; cursor:pointer;">
-          <input type="checkbox" id="chk-uncertain" ${state.simulateUncertainReading ? 'checked' : ''} onchange="toggleUncertainSim(this.checked)">
-          <span>Simulate Sensor Obstacle / Uncertain Reading</span>
-        </label>
-        <button id="btn-start-scan" class="btn btn-primary" onclick="runSimulatedScan()">
-          📡 Request Stock Scan Now
-        </button>
-      </div>
-    </div>
-
-    <!-- Hardware Interrogation Panel -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title">
-          <span>📟 ESP8266 NodeMCU & HC-SR04 Transceiver Status</span>
-        </div>
-        <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-          ${state.deviceOnline ? 'Hardware Link Active' : 'Device Offline'}
-        </span>
-      </div>
-      <div class="card-body">
-        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1rem;">
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">Assigned Unit:</div>
-            <strong>${state.device.assignedPharmacy}</strong>
-          </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">IP & Gateway:</div>
-            <code>${state.device.ip}</code>
-          </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">Wi-Fi RSSI:</div>
-            <span>${state.device.wifiRssi}</span>
-          </div>
-          <div>
-            <div style="font-size:0.75rem; color:var(--text-muted);">Sensor Array:</div>
-            <span>${state.device.ultrasonicSensor}</span>
-          </div>
-        </div>
-
-        <div style="font-size:0.8125rem; font-weight:600; margin-bottom:0.35rem;" id="scan-status-text">
-          Status: Ready for scan request
-        </div>
-        
-        <div class="progress-bar-container">
-          <div id="scan-progress-bar" class="progress-bar-fill"></div>
-        </div>
-
-        <div id="scan-terminal" class="scan-console">
-          <div class="log-line"><span class="log-time">[Ready]</span> ESP8266 telemetry daemon standby. Waiting for scan command trigger.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Per-Medicine Reading Results Table -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <span>📦 Most Recent Ultrasonic Measurements</span>
-        </div>
-        <span style="font-size:0.75rem; color:var(--text-muted);">Refreshed automatically after scan</span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Medicine</th>
-              <th>Compartment</th>
-              <th>Echo Distance</th>
-              <th>Estimated Units</th>
-              <th>Confidence</th>
-              <th>Reading Validity</th>
-            </tr>
-          </thead>
-          <tbody id="scan-results-tbody">
-            ${state.medicines.map(m => `
-              <tr>
-                <td><strong>${m.name}</strong></td>
-                <td><code>${m.compartment}</code></td>
-                <td>${m.distance.toFixed(1)} cm</td>
-                <td><strong>${m.quantity} ${m.unit}</strong></td>
-                <td>
-                  <span class="badge ${m.confidence >= 90 ? 'badge-success' : 'badge-warning'}">
-                    ${m.confidence}%
-                  </span>
-                </td>
-                <td>
-                  <span class="badge ${m.status === 'Uncertain' ? 'badge-danger' : 'badge-success'}">
-                    ${m.status === 'Uncertain' ? '⚠️ Flagged Uncertain' : '✅ Verified Valid'}
-                  </span>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function toggleUncertainSim(val) {
-  state.simulateUncertainReading = val;
-  saveState();
-}
-
-function runSimulatedScan() {
-  if (!state.deviceOnline) {
-    showToast('Cannot scan: ESP8266 IoT device is currently OFFLINE.', 'danger');
-    return;
-  }
-
-  const btn = document.getElementById('btn-start-scan');
-  const bar = document.getElementById('scan-progress-bar');
-  const term = document.getElementById('scan-terminal');
-  const statusText = document.getElementById('scan-status-text');
-
-  if (btn) btn.disabled = true;
-  if (bar) {
-    bar.style.width = '0%';
-    bar.classList.add('running');
-  }
-
-  const log = (msg, cls = '') => {
-    if (term) {
-      const now = new Date().toTimeString().split(' ')[0];
-      term.innerHTML += `<div class="log-line ${cls}"><span class="log-time">[${now}]</span> ${msg}</div>`;
-      term.scrollTop = term.scrollHeight;
-    }
-  };
-
-  log('Triggering UDP discovery packet to ESP8266 node at ' + state.device.ip + '...', '');
-  if (statusText) statusText.innerText = 'Status: Interrogating ESP8266 Controller...';
-
-  setTimeout(() => {
-    if (bar) bar.style.width = '25%';
-    log('ACK received from ESP8266 (12ms round-trip). Waking HC-SR04 sonar module.', 'log-ok');
-
-    setTimeout(() => {
-      if (bar) bar.style.width = '55%';
-      log('Emitting 40kHz ultrasonic burst across Compartments 1-7...', '');
-
-      setTimeout(() => {
-        if (bar) bar.style.width = '85%';
-        log('Reading echo time-of-flight. Applying speed of sound compensation (331.3 + 0.606 * 3.8°C = 333.6 m/s)...', '');
-
-        setTimeout(() => {
-          if (bar) {
-            bar.style.width = '100%';
-            bar.classList.remove('running');
-          }
-
-          // Update medicine measurements
-          const timestamp = new Date().toLocaleString();
-          state.medicines.forEach((m, idx) => {
-            if (state.simulateUncertainReading && idx === 1) {
-              // Simulate uncertain measurement on item 2
-              m.confidence = 45;
-              m.status = 'Uncertain';
-              log(`⚠️ Compartment ${m.compartment}: Echo interference detected! Confidence dropped to 45%. Retaining prior quantity: ${m.quantity} ${m.unit}.`, 'log-warn');
-            } else {
-              m.confidence = Math.floor(92 + Math.random() * 8);
-              m.status = m.quantity <= m.threshold ? 'Low' : 'Normal';
-              m.lastMeasurement = timestamp;
-            }
-          });
-
-          log('Scan completed successfully. Stock estimates updated in local state.', 'log-ok');
-          if (statusText) statusText.innerText = 'Status: Scan complete (100%)';
-          if (btn) btn.disabled = false;
-
-          state.auditLog.unshift({
-            time: new Date().toTimeString().split(' ')[0],
-            user: 'ESP8266 Transceiver',
-            action: 'Ultrasonic Scan',
-            details: `Interrogated ${state.medicines.length} medicine racks. Readings updated.`
-          });
-
-          saveState();
-          showToast('Ultrasonic scan completed successfully!', 'success');
-          
-          // Re-render scanning table
-          setTimeout(() => {
-            if (state.activeTab.pharmacy === 'scanning') {
-              renderApp();
-            }
-          }, 600);
-
-        }, 700);
-      }, 700);
-    }, 700);
-  }, 600);
-}
-
-// ==========================================================================
-// 7. Cold-Storage Monitoring
-// ==========================================================================
-
-function renderColdStorageMonitoring() {
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Cold-Storage Chamber Monitoring</h1>
-        <p class="page-desc">Chamber temperature regulation & DS18B20 digital thermal sensor logs</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="openTempConfigModal()">
-          ⚙️ Configure Safe Temp Range
-        </button>
-        <button class="btn btn-teal" onclick="simulateTempSpike()">
-          ⚡ Simulate Door Open (+3.5°C)
-        </button>
-      </div>
-    </div>
-
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Live Chamber Temp</span>
-          <div class="metric-icon-box" style="background:#ccfbf1; color:#0f766e;">🌡️</div>
-        </div>
-        <div class="metric-value" style="color:${state.pharmacyProfile.currentTemp > state.pharmacyProfile.tempMax ? 'var(--danger)' : 'var(--teal)'};">
-          ${state.pharmacyProfile.currentTemp}°C
-        </div>
-        <div class="metric-sub ${state.pharmacyProfile.currentTemp <= state.pharmacyProfile.tempMax ? 'positive' : 'danger'}">
-          ${state.pharmacyProfile.currentTemp <= state.pharmacyProfile.tempMax ? 'Within Safe Limits' : '⚠️ Cold Chain Breach Warning'}
-        </div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Configured Min Temp</span>
-          <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">❄️</div>
-        </div>
-        <div class="metric-value">${state.pharmacyProfile.tempMin}°C</div>
-        <div class="metric-sub">Prevents freezing damage</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Configured Max Temp</span>
-          <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">🔥</div>
-        </div>
-        <div class="metric-value">${state.pharmacyProfile.tempMax}°C</div>
-        <div class="metric-sub">Prevents thermal degradation</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Sensor Calibration</span>
-          <div class="metric-icon-box" style="background:#f1f5f9; color:#475569;">🔬</div>
-        </div>
-        <div class="metric-value" style="font-size:1.25rem;">±0.15°C</div>
-        <div class="metric-sub positive">NIST Traceable Certified</div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title">
-          <span>📈 24-Hour Chamber Temperature Curve</span>
-        </div>
-        <span class="badge badge-success">Safe Band: ${state.pharmacyProfile.tempMin}°C to ${state.pharmacyProfile.tempMax}°C</span>
-      </div>
-      <div class="card-body">
-        <div class="chart-container" style="height:280px;">
-          <canvas id="tempChartLarge" class="mini-chart"></canvas>
-        </div>
-      </div>
-    </div>
-
-    <!-- Reading Log Table -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <span>📋 Hourly Thermal Telemetry Records</span>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="exportDataCsv('temperature')">Export CSV</button>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Recorded Temp</th>
-              <th>Compliance Status</th>
-              <th>Relative Humidity</th>
-              <th>Sensor Node</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.temperatureHistory.slice(-6).reverse().map(h => {
-              const safe = h.temp >= state.pharmacyProfile.tempMin && h.temp <= state.pharmacyProfile.tempMax;
-              return `
-                <tr>
-                  <td>Today, ${h.time}</td>
-                  <td><strong>${h.temp}°C</strong></td>
-                  <td>
-                    <span class="badge ${safe ? 'badge-success' : 'badge-danger'}">
-                      ${safe ? 'Compliant' : 'Breach Detected'}
-                    </span>
-                  </td>
-                  <td>48.2% RH</td>
-                  <td>DS18B20 (ESP8266-01)</td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function simulateTempSpike() {
-  state.pharmacyProfile.currentTemp = parseFloat((state.pharmacyProfile.currentTemp + 3.5).toFixed(1));
-  state.temperatureHistory.push({
-    time: new Date().toTimeString().split(' ')[0].substring(0, 5),
-    temp: state.pharmacyProfile.currentTemp
-  });
-
-  if (state.pharmacyProfile.currentTemp > state.pharmacyProfile.tempMax) {
-    state.alerts.unshift({
-      id: 'alt-' + Date.now(),
-      pharmacyId: 'pharma-1',
-      title: '🚨 CRITICAL: Cold Storage Temperature Breach',
-      desc: `Chamber temperature rose to ${state.pharmacyProfile.currentTemp}°C, exceeding safe maximum threshold of ${state.pharmacyProfile.tempMax}°C.`,
-      severity: 'danger',
-      timestamp: 'Just now',
-      unread: true,
-      category: 'temp'
-    });
-    showToast(`Thermal alert! Chamber temperature spiked to ${state.pharmacyProfile.currentTemp}°C`, 'danger');
-  } else {
-    showToast(`Chamber temperature updated to ${state.pharmacyProfile.currentTemp}°C`, 'warning');
-  }
-
-  saveState();
-  renderApp();
-}
-
-// ==========================================================================
-// 8. Distributor Subscriptions (Pharmacy Portal View)
-// ==========================================================================
-
-function renderPharmacySubscriptions() {
-  const pending = state.subscriptions.filter(s => s.pharmacyId === 'pharma-1' && s.status === 'pending');
-  const approved = state.subscriptions.filter(s => s.pharmacyId === 'pharma-1' && s.status === 'approved');
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Distributor Channel Subscriptions</h1>
-        <p class="page-desc">Control wholesale distributor access to your live cold-storage medicine inventory</p>
-      </div>
-    </div>
-
-    <div class="warning-callout">
-      <div style="font-size:1.1rem;">🔒</div>
-      <div>
-        <strong>Privacy Enforcement:</strong> Stock quantities, sensor confidence scores, and chamber temperatures remain completely hidden from wholesale distributors until you explicitly approve their subscription.
-      </div>
-    </div>
-
-    <!-- Pending Requests Table -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title">
-          <span>⏳ Pending Access Requests (${pending.length})</span>
-        </div>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Distributor Organization</th>
-              <th>License No.</th>
-              <th>Requested Date</th>
-              <th>Purpose / Notes</th>
-              <th style="text-align:right;">Access Decision</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${pending.length === 0 ? `
-              <tr>
-                <td colspan="5">
-                  <div class="empty-state">
-                    <div class="empty-state-title">No pending subscription requests</div>
-                    <div class="empty-state-desc">All distributor requests have been processed.</div>
-                  </div>
-                </td>
-              </tr>
-            ` : pending.map(sub => {
-              const dist = state.distributors.find(d => d.id === sub.distributorId) || { name: 'Unknown Wholesaler', license: 'N/A' };
-              return `
-                <tr>
-                  <td>
-                    <strong>${dist.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${dist.city || ''}</div>
-                  </td>
-                  <td><code>${dist.license}</code></td>
-                  <td>${sub.requestDate}</td>
-                  <td style="max-width:280px;">${sub.notes}</td>
-                  <td style="text-align:right;">
-                    <button class="btn btn-teal btn-sm" onclick="handleSubscription('${sub.id}', 'approved')">
-                      Approve Stock Access
-                    </button>
-                    <button class="btn btn-danger-outline btn-sm" onclick="handleSubscription('${sub.id}', 'rejected')">
-                      Reject
-                    </button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Approved Distributors Table -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title">
-          <span>✅ Approved Medicine Distributors (${approved.length})</span>
-        </div>
-        <span style="font-size:0.75rem; color:var(--text-muted);">Active stock read channels</span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Distributor Organization</th>
-              <th>Contact Details</th>
-              <th>Approval Status</th>
-              <th>Channel Access</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${approved.length === 0 ? `
-              <tr>
-                <td colspan="5">
-                  <div class="empty-state">
-                    <div class="empty-state-title">No approved distributors yet</div>
-                    <div class="empty-state-desc">Approve a pending distributor request to enable inventory synchronization.</div>
-                  </div>
-                </td>
-              </tr>
-            ` : approved.map(sub => {
-              const dist = state.distributors.find(d => d.id === sub.distributorId) || { name: 'MetroMed Wholesale', contact: 'Marcus Vance' };
-              return `
-                <tr>
-                  <td>
-                    <strong>${dist.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${dist.license}</div>
-                  </td>
-                  <td>${dist.contact || 'Marcus Vance'}</td>
-                  <td><span class="badge badge-success">Approved & Active</span></td>
-                  <td><code>Live Stock & Temperature Feed</code></td>
-                  <td style="text-align:right;">
-                    <button class="btn btn-danger-outline btn-sm" onclick="handleSubscription('${sub.id}', 'revoked')">
-                      Revoke Access
-                    </button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function handleSubscription(subId, newStatus) {
-  const sub = state.subscriptions.find(s => s.id === subId);
-  if (!sub) return;
-
-  sub.status = newStatus;
-  saveState();
-
-  const dist = state.distributors.find(d => d.id === sub.distributorId);
-  const distName = dist ? dist.name : 'Distributor';
-
-  if (newStatus === 'approved') {
-    showToast(`Access approved for ${distName}. They can now view cold-storage stock.`, 'success');
-  } else if (newStatus === 'rejected') {
-    showToast(`Subscription request from ${distName} rejected.`, 'info');
-  } else if (newStatus === 'revoked') {
-    showToast(`Stock access revoked for ${distName}.`, 'warning');
-  }
-
-  renderApp();
-}
-
-// ==========================================================================
-// 9. Pharmacy Alerts View
-// ==========================================================================
-
-function renderPharmacyAlerts() {
-  const filterCat = document.getElementById('alert-filter-cat')?.value || 'all';
-  
-  let list = state.alerts.filter(a => {
-    if (filterCat !== 'all' && a.category !== filterCat) return false;
-    return true;
-  });
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Alerts & System Notifications</h1>
-        <p class="page-desc">Cold-chain exceptions, low-stock thresholds, and sensor telemetry flags</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="markAllAlertsRead()">
-          ✓ Mark All as Read
-        </button>
-      </div>
-    </div>
-
-    <div class="table-toolbar">
-      <div class="table-search-group">
-        <select id="alert-filter-cat" class="filter-select" onchange="renderApp()">
-          <option value="all">All Categories</option>
-          <option value="stock">Stock Thresholds</option>
-          <option value="temp">Cold Chain Temperatures</option>
-          <option value="device">IoT & Ultrasonic Transceiver</option>
-        </select>
-      </div>
-      <div style="font-size:0.8125rem; color:var(--text-muted);">
-        Total Notifications: ${list.length}
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Severity</th>
-              <th>Subject & Notification Details</th>
-              <th>Category</th>
-              <th>Logged Time</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${list.map(a => `
-              <tr style="${a.unread ? 'background:#f0f9ff;' : ''}">
-                <td>
-                  ${a.unread ? '<span class="badge badge-info">New</span>' : '<span style="color:var(--text-subtle); font-size:0.75rem;">Read</span>'}
-                </td>
-                <td>
-                  <span class="badge badge-${a.severity}">
-                    ${a.severity.toUpperCase()}
-                  </span>
-                </td>
-                <td>
-                  <strong>${a.title}</strong>
-                  <div style="font-size:0.75rem; color:var(--text-muted); margin-top:0.2rem;">${a.desc}</div>
-                </td>
-                <td><span class="badge badge-neutral">${a.category}</span></td>
-                <td style="font-size:0.75rem;">${a.timestamp}</td>
-                <td style="text-align:right;">
-                  <button class="btn btn-outline btn-sm" onclick="markAlertRead('${a.id}')">
-                    ${a.unread ? 'Mark Read' : 'Dismiss'}
-                  </button>
-                </td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function markAlertRead(alertId) {
-  const alert = state.alerts.find(a => a.id === alertId);
-  if (alert) {
-    alert.unread = false;
-    saveState();
-    renderApp();
-  }
-}
-
-function markAllAlertsRead() {
-  state.alerts.forEach(a => a.unread = false);
-  saveState();
-  showToast('All notifications marked as read', 'info');
-  renderApp();
-}
-
-// ==========================================================================
-// 10. Pharmacy Channel Settings
-// ==========================================================================
-
-function renderPharmacyChannel() {
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Pharmacy Channel & Privacy Settings</h1>
-        <p class="page-desc">Public directory presence and cold-chain broadcasting tokens</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-primary" onclick="showToast('Channel settings saved successfully.', 'success')">
-          Save Channel Profile
-        </button>
-      </div>
-    </div>
-
-    <div class="card" style="max-width:750px;">
-      <div class="card-header">
-        <div class="card-title"><span>🏥 Pharmacy Profile & Credentials</span></div>
-      </div>
-      <div class="card-body">
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Pharmacy Legal Entity Name</label>
-            <input type="text" class="form-input" value="${state.pharmacyProfile.name}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">State Pharmacy Board License ID</label>
-            <input type="text" class="form-input" value="${state.pharmacyProfile.license}" readonly style="background:var(--bg-muted);">
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Chamber Location / Street Address</label>
-          <input type="text" class="form-input" value="${state.pharmacyProfile.city}">
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Directory Discovery Status</label>
-            <select class="form-select">
-              <option value="public" selected>Listed in Public Pharmacy Directory</option>
-              <option value="private">Unlisted (Private Token Invites Only)</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">Shareable Channel Identifier</label>
-            <input type="text" class="form-input" value="${state.pharmacyProfile.channelToken}" readonly style="background:var(--bg-muted);">
-          </div>
-        </div>
-
-        <div class="info-callout" style="margin-top:1rem;">
-          <div>ℹ️</div>
-          <div>Distributors searching the public directory will see your pharmacy name and location, but cannot inspect stock levels without approval.</div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// ==========================================================================
-// 11. Device & Ultrasonic Hardware Settings
-// ==========================================================================
-
-function renderDeviceSettings() {
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">ESP8266 IoT Hardware Configuration</h1>
-        <p class="page-desc">NodeMCU microcontroller, HC-SR04 ultrasonic sonar, and DS18B20 calibration</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="toggleDeviceOnline()">
-          ${state.deviceOnline ? 'Simulate Disconnect' : 'Simulate Reconnect'}
-        </button>
-        <button class="btn btn-primary" onclick="recalibrateSensors()">
-          🔄 Run Transducer Zero-Calibration
-        </button>
-      </div>
-    </div>
-
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><span>📟 NodeMCU ESP8266 Specifications</span></div>
-          <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-            ${state.deviceOnline ? 'Connected' : 'Offline'}
-          </span>
-        </div>
-        <div class="card-body">
-          <table class="data-table">
-            <tr>
-              <td><strong>Device Identifier</strong></td>
-              <td><code>${state.device.id}</code></td>
-            </tr>
-            <tr>
-              <td><strong>Firmware Build</strong></td>
-              <td>${state.device.firmware}</td>
-            </tr>
-            <tr>
-              <td><strong>Hardware MAC Address</strong></td>
-              <td><code>${state.device.mac}</code></td>
-            </tr>
-            <tr>
-              <td><strong>Local IP Address</strong></td>
-              <td><code>${state.device.ip}</code></td>
-            </tr>
-            <tr>
-              <td><strong>Wi-Fi Network (SSID)</strong></td>
-              <td>${state.device.wifiSsid} (${state.device.wifiRssi})</td>
-            </tr>
-            <tr>
-              <td><strong>Operating Mode</strong></td>
-              <td><span class="badge badge-info">${state.device.mode}</span></td>
-            </tr>
-          </table>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><span>📡 HC-SR04 Ultrasonic Calibration</span></div>
-        </div>
-        <div class="card-body">
-          <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem;">
-            Ultrasonic sound pulses take \(t\) microseconds to return from the top of the medicine containers.
-          </p>
-
-          <div class="form-group">
-            <label class="form-label">Sound Velocity Temperature Compensation Factor</label>
-            <input type="text" class="form-input" value="331.3 m/s + (0.606 * Temp) = 333.6 m/s" readonly style="background:var(--bg-muted);">
-            <div class="form-hint">Automatically adjusted using live DS18B20 temperature sensor data.</div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group">
-              <label class="form-label">Default Empty Tray Depth</label>
-              <input type="text" class="form-input" value="45.0 cm">
-            </div>
-            <div class="form-group">
-              <label class="form-label">Full Stack Distance</label>
-              <input type="text" class="form-input" value="8.0 cm">
-            </div>
-          </div>
-
-          <div class="form-group">
-            <label class="form-label">Hardware Pinout Mapping</label>
-            <div style="font-size:0.75rem; background:var(--bg-muted); padding:0.6rem; border-radius:var(--radius); font-family:var(--font-mono);">
-              Trigger: Pin D5 (GPIO14) | Echo: Pin D6 (GPIO12) | Temp: Pin D2 (GPIO4)
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function recalibrateSensors() {
-  showToast('Transducer zero-calibration initiated...', 'info');
-  setTimeout(() => {
-    showToast('Ultrasonic zero-distance calibrated against 3.8°C thermal baseline.', 'success');
-  }, 1000);
-}
-
-// ==========================================================================
-// 12. Distributor Portal Views
-// ==========================================================================
-
-function renderDistributorDashboard() {
-  const approvedSubs = state.subscriptions.filter(s => s.distributorId === 'dist-1' && s.status === 'approved');
-  const pendingSubs = state.subscriptions.filter(s => s.distributorId === 'dist-1' && s.status === 'pending');
-  const visibleMedsCount = approvedSubs.length > 0 ? state.medicines.length : 0;
-  const lowStockInNetwork = approvedSubs.length > 0 ? state.medicines.filter(m => m.quantity <= m.threshold).length : 0;
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Medicine Distributor Dashboard</h1>
-        <p class="page-desc">${state.distributors[0].name} • Wholesale Cold-Chain Logistics</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="switchTab('directory')">
-          🔍 Find Partner Pharmacies
-        </button>
-        <button class="btn btn-primary" onclick="switchTab('stock')">
-          📦 View Approved Cold Stock
-        </button>
-      </div>
-    </div>
-
-    <!-- Metric Cards -->
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Subscribed Pharmacies</span>
-          <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">🏥</div>
-        </div>
-        <div class="metric-value">${approvedSubs.length}</div>
-        <div class="metric-sub positive">Approved stock viewing channels</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Pending Access Requests</span>
-          <div class="metric-icon-box" style="background:#fef3c7; color:#92400e;">⏳</div>
-        </div>
-        <div class="metric-value">${pendingSubs.length}</div>
-        <div class="metric-sub warning">Awaiting pharmacy consent</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Visible Stock Items</span>
-          <div class="metric-icon-box" style="background:#d1fae5; color:#065f46;">💊</div>
-        </div>
-        <div class="metric-value">${visibleMedsCount}</div>
-        <div class="metric-sub">Across approved channels</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Low Stock Restock Alerts</span>
-          <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">🚨</div>
-        </div>
-        <div class="metric-value" style="color:var(--danger);">${lowStockInNetwork}</div>
-        <div class="metric-sub danger">Pharmacies needing replenishment</div>
-      </div>
-    </div>
-
-    <!-- Approved Channel Overview -->
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title">
-          <span>🏥 Active Subscribed Pharmacies</span>
-        </div>
-        <button class="btn btn-outline btn-sm" onclick="switchTab('directory')">+ Request More Pharmacies</button>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Pharmacy</th>
-              <th>Location</th>
-              <th>Chamber Temp</th>
-              <th>Device Status</th>
-              <th>Visible Inventory</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${approvedSubs.map(sub => {
-              const pharma = state.directoryPharmacies.find(p => p.id === sub.pharmacyId) || state.pharmacyProfile;
-              return `
-                <tr>
-                  <td>
-                    <strong>${pharma.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${pharma.license || 'PHARM-8821'}</div>
-                  </td>
-                  <td>${pharma.city}</td>
-                  <td>
-                    <span class="badge badge-success">${state.pharmacyProfile.currentTemp}°C</span>
-                  </td>
-                  <td>
-                    <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-                      ${state.deviceOnline ? 'ESP8266 Online' : 'Device Offline'}
-                    </span>
-                  </td>
-                  <td><strong>${state.medicines.length} Medicines</strong></td>
-                  <td>
-                    <button class="btn btn-teal btn-sm" onclick="switchTab('stock')">
-                      View Stock Details →
-                    </button>
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Charts -->
-    <div class="card">
-      <div class="card-header">
-        <div class="card-title"><span>📊 Subscribed Pharmacy Inventory Volumes</span></div>
-      </div>
-      <div class="card-body">
-        <div class="chart-container">
-          <canvas id="distributorStockChart" class="mini-chart"></canvas>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function renderDistributorDirectory() {
-  const searchTerm = (document.getElementById('dir-search')?.value || '').toLowerCase();
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Pharmacy Cold-Chain Directory</h1>
-        <p class="page-desc">Public registry of pharmacies utilizing IoT cold-storage monitoring</p>
-      </div>
-    </div>
-
-    <div class="info-callout">
-      <div>🔒</div>
-      <div>
-        <strong>Confidentiality Policy:</strong> In compliance with pharmacy stock privacy regulations, detailed inventory numbers and chamber temperatures are never shown in this directory. You must submit a subscription request to request access.
-      </div>
-    </div>
-
-    <div class="table-toolbar">
-      <div class="table-search-group">
-        <input type="text" id="dir-search" class="input-search" placeholder="Search pharmacy by name or district..." value="${searchTerm}" oninput="renderApp()">
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Pharmacy Name</th>
-              <th>District / City</th>
-              <th>Operating Hours</th>
-              <th>Channel Availability</th>
-              <th>Subscription Status</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.directoryPharmacies.map(p => {
-              const existingSub = state.subscriptions.find(s => s.pharmacyId === p.id && s.distributorId === 'dist-1');
-              const subStatus = existingSub ? existingSub.status : 'none';
-
-              return `
-                <tr>
-                  <td>
-                    <strong>${p.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${p.license}</div>
-                  </td>
-                  <td>${p.city}</td>
-                  <td>${p.hours || 'Standard Business Hours'}</td>
-                  <td><span class="badge badge-info">${p.availability}</span></td>
-                  <td>
-                    ${subStatus === 'approved' ? '<span class="badge badge-success">Approved</span>' :
-                      subStatus === 'pending' ? '<span class="badge badge-warning">Request Pending</span>' :
-                      subStatus === 'rejected' ? '<span class="badge badge-danger">Rejected</span>' :
-                      '<span class="badge badge-neutral">Not Subscribed</span>'}
-                  </td>
-                  <td style="text-align:right;">
-                    ${subStatus === 'approved' ? `
-                      <button class="btn btn-teal btn-sm" onclick="switchTab('stock')">Inspect Stock</button>
-                    ` : subStatus === 'pending' ? `
-                      <button class="btn btn-outline btn-sm" onclick="cancelSubscriptionRequest('${existingSub.id}')">Cancel Request</button>
-                    ` : `
-                      <button class="btn btn-primary btn-sm" onclick="openRequestAccessModal('${p.id}')">Request Access</button>
-                    `}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function cancelSubscriptionRequest(subId) {
-  state.subscriptions = state.subscriptions.filter(s => s.id !== subId);
-  saveState();
-  showToast('Access request cancelled.', 'info');
-  renderApp();
-}
-
-function renderDistributorSubscriptions() {
-  const mySubs = state.subscriptions.filter(s => s.distributorId === 'dist-1');
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Wholesale Access Requests</h1>
-        <p class="page-desc">Track approvals, pending requests, and granted channels</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-primary" onclick="switchTab('directory')">+ Find More Pharmacies</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Target Pharmacy</th>
-              <th>Request Date</th>
-              <th>Purpose Note</th>
-              <th>Current Status</th>
-              <th style="text-align:right;">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${mySubs.map(s => {
-              const pharma = state.directoryPharmacies.find(p => p.id === s.pharmacyId) || { name: 'Unknown' };
-              return `
-                <tr>
-                  <td><strong>${pharma.name}</strong></td>
-                  <td>${s.requestDate}</td>
-                  <td>${s.notes}</td>
-                  <td>
-                    ${s.status === 'approved' ? '<span class="badge badge-success">Access Granted</span>' :
-                      s.status === 'pending' ? '<span class="badge badge-warning">Awaiting Approval</span>' :
-                      '<span class="badge badge-danger">' + s.status + '</span>'}
-                  </td>
-                  <td style="text-align:right;">
-                    ${s.status === 'approved' ? `
-                      <button class="btn btn-teal btn-sm" onclick="switchTab('stock')">Open Stock Feed</button>
-                    ` : `
-                      <button class="btn btn-outline btn-sm" onclick="cancelSubscriptionRequest('${s.id}')">Cancel</button>
-                    `}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function renderDistributorStock() {
-  // Check if distributor has approved subscription to City Care Pharmacy
-  const isApproved = state.subscriptions.some(s => s.distributorId === 'dist-1' && s.pharmacyId === 'pharma-1' && s.status === 'approved');
-
-  if (!isApproved) {
-    return `
-      <div class="page-header">
-        <div>
-          <h1 class="page-title">Pharmacy Cold Stock Details</h1>
-          <p class="page-desc">Secure cold-chain inventory inspection</p>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-body">
-          <div class="empty-state">
-            <div class="empty-state-icon">🔒</div>
-            <div class="empty-state-title">Access Restricted</div>
-            <div class="empty-state-desc">
-              Your distributor account has not been approved to view City Care Pharmacy's cold-storage inventory.
-            </div>
-            <button class="btn btn-primary" onclick="switchRole('pharmacy'); switchTab('subscriptions');">
-              Switch to Pharmacy Portal to Approve Request
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">${state.pharmacyProfile.name} • Cold-Storage Stock</h1>
-        <p class="page-desc">Approved Channel Feed • License: ${state.pharmacyProfile.license}</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-outline" onclick="requestDistributorScan()">
-          🔄 Request Fresh Stock Scan
-        </button>
-      </div>
-    </div>
-
-    ${!state.deviceOnline ? `
-      <div class="warning-callout">
-        <div>⚠️</div>
-        <div>
-          <strong>Stale Data Warning:</strong> The pharmacy's ESP8266 IoT device is currently OFFLINE. The inventory counts displayed below represent the last cached readings from earlier today.
-        </div>
-      </div>
-    ` : ''}
-
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Current Chamber Temp</span>
-          <div class="metric-icon-box" style="background:#ccfbf1; color:#0f766e;">❄️</div>
-        </div>
-        <div class="metric-value">${state.pharmacyProfile.currentTemp}°C</div>
-        <div class="metric-sub positive">Safe Band: 2.0°C - 8.0°C</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">IoT Connection</span>
-          <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">📡</div>
-        </div>
-        <div class="metric-value" style="font-size:1.3rem;">
-          <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-            ${state.deviceOnline ? 'ESP8266 Online' : 'Device Offline'}
-          </span>
-        </div>
-        <div class="metric-sub">Updated ${state.pharmacyProfile.lastUpdate}</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Items Requiring Restock</span>
-          <div class="metric-icon-box" style="background:#fee2e2; color:#991b1b;">⚠️</div>
-        </div>
-        <div class="metric-value" style="color:var(--danger);">
-          ${state.medicines.filter(m => m.quantity <= m.threshold).length}
-        </div>
-        <div class="metric-sub danger">At or below reorder threshold</div>
-      </div>
-    </div>
-
-    <div class="card" style="margin-bottom:1.5rem;">
-      <div class="card-header">
-        <div class="card-title"><span>💊 Real-Time Medicine Inventory</span></div>
-        <span class="badge badge-info">Ultrasonic Calibrated Estimates</span>
-      </div>
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Medicine Name</th>
-              <th>Unit</th>
-              <th>Compartment</th>
-              <th>Estimated Stock</th>
-              <th>Threshold</th>
-              <th>Status</th>
-              <th>Sensor Confidence</th>
-              <th>Restock Need</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.medicines.map(m => {
-              const isLow = m.quantity <= m.threshold;
-              return `
-                <tr>
-                  <td><strong>${m.name}</strong></td>
-                  <td>${m.unit}</td>
-                  <td><code>${m.compartment}</code></td>
-                  <td><strong style="color:${isLow ? 'var(--danger)' : 'var(--text-main)'};">${m.quantity}</strong></td>
-                  <td>${m.threshold}</td>
-                  <td>
-                    <span class="badge ${isLow ? 'badge-danger' : 'badge-success'}">
-                      ${isLow ? 'Low Stock' : 'Adequate'}
-                    </span>
-                  </td>
-                  <td>${m.confidence}%</td>
-                  <td>
-                    ${isLow ? '<span style="color:var(--danger); font-weight:600;">Dispatch Recommended</span>' : '<span style="color:var(--text-muted);">Stock OK</span>'}
-                  </td>
-                </tr>
-              `;
-            }).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function requestDistributorScan() {
-  if (!state.deviceOnline) {
-    showToast('Cannot request stock update: Pharmacy IoT device is currently OFFLINE.', 'danger');
-    return;
-  }
-  showToast('Simulated stock update request sent to City Care Pharmacy ESP8266 node...', 'info');
-  setTimeout(() => {
-    showToast('Stock readings refreshed from pharmacy cold-storage sensors.', 'success');
-    renderApp();
-  }, 1200);
-}
-
-function renderDistributorAlerts() {
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Subscribed Pharmacy Alerts</h1>
-        <p class="page-desc">Critical threshold breaches from your approved pharmacy channels</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Pharmacy</th>
-              <th>Severity</th>
-              <th>Alert Title</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.alerts.map(a => `
-              <tr>
-                <td><strong>${state.pharmacyProfile.name}</strong></td>
-                <td><span class="badge badge-${a.severity}">${a.severity.toUpperCase()}</span></td>
-                <td>
-                  <strong>${a.title}</strong>
-                  <div style="font-size:0.75rem; color:var(--text-muted);">${a.desc}</div>
-                </td>
-                <td style="font-size:0.75rem;">${a.timestamp}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function renderDistributorProfile() {
-  const d = state.distributors[0];
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Wholesale Distributor Profile</h1>
-        <p class="page-desc">Organization details and state cold-chain distribution license</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-primary" onclick="showToast('Profile updated.', 'success')">Save Changes</button>
-      </div>
-    </div>
-
-    <div class="card" style="max-width:700px;">
-      <div class="card-body">
-        <div class="form-group">
-          <label class="form-label">Company Name</label>
-          <input type="text" class="form-input" value="${d.name}">
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Wholesale License ID</label>
-            <input type="text" class="form-input" value="${d.license}" readonly style="background:var(--bg-muted);">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Primary Logistics Officer</label>
-            <input type="text" class="form-input" value="${d.contact}">
-          </div>
-        </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Email Address</label>
-            <input type="text" class="form-input" value="${d.email}">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Phone</label>
-            <input type="text" class="form-input" value="${d.phone}">
-          </div>
-        </div>
-        <div class="form-group">
-          <label class="form-label">Distribution Hub Location</label>
-          <input type="text" class="form-input" value="${d.city}">
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-// ==========================================================================
-// 13. Administrator Portal Views
-// ==========================================================================
-
-function renderAdminOverview() {
-  const pendingAccs = state.accounts.filter(a => a.status === 'Pending').length;
-
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Platform Administrator Overview</h1>
-        <p class="page-desc">Central oversight of pharmacies, distributors, and IoT sensor fleets</p>
-      </div>
-    </div>
-
-    <div class="metrics-grid">
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Registered Pharmacies</span>
-          <div class="metric-icon-box" style="background:#e0f2fe; color:#0369a1;">🏥</div>
-        </div>
-        <div class="metric-value">3</div>
-        <div class="metric-sub">Active in network</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Distributor Partners</span>
-          <div class="metric-icon-box" style="background:#d1fae5; color:#065f46;">🚚</div>
-        </div>
-        <div class="metric-value">2</div>
-        <div class="metric-sub">Verified wholesalers</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Pending Approvals</span>
-          <div class="metric-icon-box" style="background:#fef3c7; color:#92400e;">👥</div>
-        </div>
-        <div class="metric-value" style="color:${pendingAccs > 0 ? 'var(--warning-text)' : 'inherit'};">
-          ${pendingAccs}
-        </div>
-        <div class="metric-sub warning">Requires admin review</div>
-      </div>
-
-      <div class="metric-card">
-        <div class="metric-header">
-          <span class="metric-title">Active IoT Nodes</span>
+          <span class="metric-title">Last Sensor Telemetry</span>
           <div class="metric-icon-box" style="background:#ccfbf1; color:#0f766e;">📡</div>
         </div>
-        <div class="metric-value">${state.deviceOnline ? '3' : '2'}</div>
-        <div class="metric-sub">${state.deviceOnline ? 'All Nodes Healthy' : '1 Node Offline'}</div>
+        <div class="metric-value" id="stat-last-update" style="font-size:1.125rem;">${lastUpdate}</div>
+        <div class="metric-sub">ESP32 60s periodic sweep</div>
       </div>
     </div>
 
-    <div class="charts-row">
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><span>👥 Recent Account Registrations</span></div>
-          <button class="btn btn-outline btn-sm" onclick="switchTab('accounts')">Manage Accounts</button>
-        </div>
-        <div class="card-body" style="padding:0;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Account</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${state.accounts.slice(0, 4).map(acc => `
-                <tr>
-                  <td><strong>${acc.name}</strong></td>
-                  <td><span class="badge badge-neutral">${acc.role}</span></td>
-                  <td>
-                    <span class="badge ${acc.status === 'Active' ? 'badge-success' : 'badge-warning'}">
-                      ${acc.status}
-                    </span>
-                  </td>
-                  <td>
-                    ${acc.status === 'Pending' ? `
-                      <button class="btn btn-teal btn-sm" onclick="approveAccount('${acc.id}')">Approve</button>
-                    ` : `<span style="font-size:0.75rem; color:var(--text-muted);">Verified</span>`}
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
+    <!-- Storage Angular Arc Distribution -->
+    <div class="card" style="margin-bottom:1.5rem;">
+      <div class="card-header">
+        <div class="card-title"><span>📐 Cold-Storage Chamber Scanning Arc (0° – 180°)</span></div>
+        <span style="font-size:0.75rem; color:var(--text-muted);">Ceiling servo orientation mapping</span>
       </div>
-
-      <div class="card">
-        <div class="card-header">
-          <div class="card-title"><span>📜 Recent Platform Activity</span></div>
-        </div>
-        <div class="card-body" style="padding:0;">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Actor</th>
-                <th>Event</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${state.auditLog.slice(0, 4).map(log => `
-                <tr>
-                  <td style="font-size:0.75rem;">${log.time}</td>
-                  <td><strong>${log.user}</strong></td>
-                  <td>
-                    <div>${log.action}</div>
-                    <div style="font-size:0.7rem; color:var(--text-muted);">${log.details}</div>
-                  </td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </div>
+      <div class="card-body">
+        ${
+          meds.length === 0
+            ? `
+          <div class="empty-state">
+            <div class="empty-state-icon">📡</div>
+            <div class="empty-state-title">No storage slots configured</div>
+            <div class="empty-state-desc">Register your medicines and assign them to unique servo angles along the cold-storage arc.</div>
+            <button class="btn btn-primary" onclick="openAddMedicineModal()">+ Configure First Slot</button>
+          </div>
+        `
+            : `
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:1rem;">
+            ${meds
+              .map((m) => {
+                const fillPct =
+                  m.max_capacity > 0
+                    ? Math.round((m.current_stock / m.max_capacity) * 100)
+                    : 0;
+                return `
+                <div style="background:var(--bg-subtle); border:1px solid var(--border); border-radius:var(--radius); padding:1rem;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                    <span class="servo-angle-pill">📐 ${m.storage_angle}°</span>
+                    <span class="badge ${getStatusBadgeClass(m.status)}">${m.status}</span>
+                  </div>
+                  <strong style="font-size:0.875rem; display:block; margin-bottom:0.25rem;">${escapeHtml(m.name)}</strong>
+                  <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:0.5rem;">
+                    Floor: ${m.empty_distance_cm}cm • Echo: <strong>${m.last_distance_cm ? m.last_distance_cm.toFixed(1) + "cm" : "—"}</strong>
+                  </div>
+                  <div class="progress-bar-container" style="height:6px; margin-bottom:0.35rem;">
+                    <div class="progress-bar-fill" style="width:${Math.min(100, fillPct)}%; background:${fillPct <= 25 ? "var(--danger)" : "var(--primary)"};"></div>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; font-size:0.75rem;">
+                    <span>Stock: <strong>${m.current_stock}</strong> / ${m.max_capacity} ${escapeHtml(m.unit)}</span>
+                    <span style="font-weight:600;">${fillPct}% filled</span>
+                  </div>
+                </div>
+              `;
+              })
+              .join("")}
+          </div>
+        `
+        }
       </div>
     </div>
   `;
 }
 
-function renderAdminAccounts() {
+// ============================================================================
+// 8. Inventory & Angles Management View
+// ============================================================================
+
+function renderPharmacyInventory() {
+  const meds = state.pharmacyMedicines;
+
   return `
     <div class="page-header">
       <div>
-        <h1 class="page-title">Account Management</h1>
-        <p class="page-desc">Review and verify pharmacy and distributor credentials</p>
+        <h1 class="page-title">Medicine Compartments & Arc Configuration</h1>
+        <p class="page-desc">Calibrate compartment floor depths, container capacities, and unit heights</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openAddMedicineModal()">
+          + Register Medicine Slot
+        </button>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-body" style="padding:0;">
+      <div class="table-container">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Account Name</th>
-              <th>Role</th>
-              <th>Email</th>
-              <th>Registration Date</th>
+              <th>Angle</th>
+              <th>Medicine Name</th>
+              <th>Unit</th>
+              <th>Empty Floor ($D_{empty}$)</th>
+              <th>Full Stack ($D_{full}$)</th>
+              <th>Unit Height</th>
+              <th>Capacity</th>
+              <th>Current Stock</th>
               <th>Status</th>
               <th style="text-align:right;">Actions</th>
             </tr>
           </thead>
           <tbody>
-            ${state.accounts.map(acc => `
+            ${
+              meds.length === 0
+                ? `<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--text-muted);">No medicines configured yet.</td></tr>`
+                : meds
+                    .map(
+                      (m) => `
               <tr>
-                <td><strong>${acc.name}</strong></td>
-                <td><span class="badge badge-info">${acc.role}</span></td>
-                <td>${acc.email}</td>
-                <td>${acc.regDate}</td>
+                <td><span class="servo-angle-pill">📐 ${m.storage_angle}°</span></td>
+                <td><strong>${escapeHtml(m.name)}</strong></td>
+                <td>${escapeHtml(m.unit)}</td>
+                <td><code>${m.empty_distance_cm} cm</code></td>
+                <td><code>${m.full_distance_cm} cm</code></td>
+                <td><code>${m.unit_height_cm || ( (m.empty_distance_cm - m.full_distance_cm)/m.max_capacity ).toFixed(2)} cm</code></td>
+                <td>${m.max_capacity}</td>
+                <td><strong id="med-stock-${m.id}">${m.current_stock} ${escapeHtml(m.unit)}</strong></td>
+                <td><span id="med-badge-${m.id}" class="badge ${getStatusBadgeClass(m.status)}">${m.status}</span></td>
+                <td style="text-align:right;">
+                  <button class="btn btn-outline btn-sm" onclick="openEditMedicineModal('${m.id}')">Edit</button>
+                  <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="deleteMedicineSlot('${m.id}')">Delete</button>
+                </td>
+              </tr>
+            `
+                    )
+                    .join("")
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================================
+// 9. Distributor Access Management View
+// ============================================================================
+
+function renderPharmacyDistributors() {
+  const dists = state.pharmacyDistributors;
+
+  return `
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Wholesale Distributor Access Channels</h1>
+        <p class="page-desc">Grant or revoke inventory visibility permissions to wholesale distributors</p>
+      </div>
+      <div class="page-actions">
+        <button class="btn btn-primary" onclick="openInviteDistributorModal()">
+          + Invite Wholesale Distributor
+        </button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Distributor Name</th>
+              <th>Email</th>
+              <th>Hub City</th>
+              <th>Status</th>
+              <th style="text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              dists.length === 0
+                ? `<tr><td colspan="5" style="text-align:center; padding:2rem; color:var(--text-muted);">No distributors invited yet.</td></tr>`
+                : dists
+                    .map(
+                      (d) => `
+              <tr>
+                <td><strong>${escapeHtml(d.name)}</strong></td>
+                <td><code>${escapeHtml(d.email)}</code></td>
+                <td>${escapeHtml(d.city || "Depot")}</td>
                 <td>
-                  <span class="badge ${acc.status === 'Active' ? 'badge-success' : acc.status === 'Pending' ? 'badge-warning' : 'badge-danger'}">
-                    ${acc.status}
+                  <span class="badge ${d.status === "accepted" ? "badge-success" : "badge-warning"}">
+                    ${d.status.toUpperCase()}
                   </span>
                 </td>
                 <td style="text-align:right;">
-                  ${acc.status === 'Pending' ? `
-                    <button class="btn btn-teal btn-sm" onclick="approveAccount('${acc.id}')">Approve</button>
-                    <button class="btn btn-danger-outline btn-sm" onclick="rejectAccount('${acc.id}')">Reject</button>
-                  ` : acc.status === 'Active' ? `
-                    <button class="btn btn-danger-outline btn-sm" onclick="suspendAccount('${acc.id}')">Suspend</button>
-                  ` : `
-                    <button class="btn btn-outline btn-sm" onclick="approveAccount('${acc.id}')">Reactivate</button>
-                  `}
+                  <button class="btn btn-outline btn-sm" style="color:var(--danger);" onclick="revokeDistributorAccess('${d.id}')">
+                    Revoke Channel
+                  </button>
                 </td>
               </tr>
-            `).join('')}
+            `
+                    )
+                    .join("")
+            }
           </tbody>
         </table>
       </div>
@@ -2351,795 +886,533 @@ function renderAdminAccounts() {
   `;
 }
 
-function approveAccount(accId) {
-  const acc = state.accounts.find(a => a.id === accId);
-  if (acc) {
-    acc.status = 'Active';
-    saveState();
-    showToast(`Account "${acc.name}" approved and activated.`, 'success');
-    renderApp();
-  }
-}
+// ============================================================================
+// 10. IoT Transceiver & Telemetry Diagnostics View
+// ============================================================================
 
-function suspendAccount(accId) {
-  const acc = state.accounts.find(a => a.id === accId);
-  if (acc) {
-    acc.status = 'Suspended';
-    saveState();
-    showToast(`Account "${acc.name}" suspended.`, 'warning');
-    renderApp();
-  }
-}
+function renderPharmacySensors() {
+  const pharma = state.currentUser.pharmacy;
+  const scans = state.recentScans;
 
-function rejectAccount(accId) {
-  state.accounts = state.accounts.filter(a => a.id !== accId);
-  saveState();
-  showToast('Account registration rejected.', 'info');
-  renderApp();
-}
-
-function renderAdminDevices() {
   return `
     <div class="page-header">
       <div>
-        <h1 class="page-title">IoT Device Fleet Monitoring</h1>
-        <p class="page-desc">ESP8266 NodeMCU & Ultrasonic hardware network telemetry</p>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Device Identifier</th>
-              <th>Assigned Facility</th>
-              <th>Status</th>
-              <th>Chamber Temp</th>
-              <th>Firmware</th>
-              <th>Wi-Fi Signal</th>
-              <th style="text-align:right;">Diagnostic Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><code>${state.device.id}</code></td>
-              <td><strong>${state.device.assignedPharmacy}</strong></td>
-              <td>
-                <span class="badge ${state.deviceOnline ? 'badge-success' : 'badge-danger'}">
-                  ${state.deviceOnline ? 'Online' : 'Offline'}
-                </span>
-              </td>
-              <td>${state.pharmacyProfile.currentTemp}°C</td>
-              <td>${state.device.firmware}</td>
-              <td>${state.device.wifiRssi}</td>
-              <td style="text-align:right;">
-                <button class="btn btn-outline btn-sm" onclick="pingDevice('${state.device.id}')">Ping Node</button>
-              </td>
-            </tr>
-            <tr>
-              <td><code>ESP8266-NODEMCU-02</code></td>
-              <td><strong>Apex Health Chemist</strong></td>
-              <td><span class="badge badge-success">Online</span></td>
-              <td>4.5°C</td>
-              <td>v2.4.1 (ESP-IDF)</td>
-              <td>-68 dBm</td>
-              <td style="text-align:right;">
-                <button class="btn btn-outline btn-sm" onclick="pingDevice('ESP8266-NODEMCU-02')">Ping Node</button>
-              </td>
-            </tr>
-            <tr>
-              <td><code>ESP8266-NODEMCU-03</code></td>
-              <td><strong>Metro Well Pharmacy</strong></td>
-              <td><span class="badge badge-success">Online</span></td>
-              <td>5.2°C</td>
-              <td>v2.3.9 (ESP-IDF)</td>
-              <td>-74 dBm</td>
-              <td style="text-align:right;">
-                <button class="btn btn-outline btn-sm" onclick="pingDevice('ESP8266-NODEMCU-03')">Ping Node</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  `;
-}
-
-function pingDevice(deviceId) {
-  showToast(`Pinging ${deviceId}... ACK received (14ms latency).`, 'success');
-}
-
-function renderAdminActivity() {
-  return `
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Platform Audit & Activity Log</h1>
-        <p class="page-desc">Simulated security events, IoT heartbeats, and administrative operations</p>
+        <h1 class="page-title">IoT Transceiver & Supabase Ingestion Stream</h1>
+        <p class="page-desc">Automated 60-second hardware telemetry recorded live in Supabase PostgreSQL</p>
       </div>
       <div class="page-actions">
-        <button class="btn btn-outline btn-sm" onclick="exportDataCsv('audit')">Export Audit Log</button>
+        <button class="btn btn-primary" onclick="fetchLiveTelemetryFromSupabase()">
+          🔄 Refresh Stream Now
+        </button>
       </div>
     </div>
 
-    <div class="card">
-      <div class="card-body" style="padding:0;">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Timestamp</th>
-              <th>Actor / Device</th>
-              <th>Action Category</th>
-              <th>Detailed Description</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${state.auditLog.map(l => `
-              <tr>
-                <td style="font-size:0.75rem; white-space:nowrap;">Today, ${l.time}</td>
-                <td><strong>${l.user}</strong></td>
-                <td><span class="badge badge-neutral">${l.action}</span></td>
-                <td>${l.details}</td>
-              </tr>
-            `).join('')}
-          </tbody>
-        </table>
+    <div class="hardware-callout">
+      <div style="font-size:1.5rem;">📟</div>
+      <div>
+        <strong>ESP32 Hardware Ingestion Active:</strong> Transceiver performs spatial sweeps every 60 seconds and publishes directly to Supabase table <code>scans</code>. Distance measurements are converted into stock counts in real time.
       </div>
     </div>
-  `;
-}
 
-// ==========================================================================
-// 14. Landing Page View
-// ==========================================================================
-
-function renderLandingPage() {
-  return `
-    <div style="max-width:1200px; margin:0 auto; padding:1rem 0;">
-      <!-- Hero -->
-      <div class="landing-hero">
-        <h1>Cloud Pharmacy Cold-Storage<br>Stock Monitoring Platform</h1>
-        <p>
-          A minimal, accessible prototype connecting pharmacy refrigerators to wholesale distributors via ESP8266 IoT microcontrollers, HC-SR04 ultrasonic sonar estimation, and continuous temperature monitoring.
-        </p>
-
-        <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
-          <button class="btn btn-primary" onclick="switchRole('pharmacy')" style="padding:0.7rem 1.4rem; font-size:0.95rem;">
-            🏥 Enter as Pharmacy Staff
-          </button>
-          <button class="btn btn-teal" onclick="switchRole('distributor')" style="padding:0.7rem 1.4rem; font-size:0.95rem;">
-            🚚 Enter as Medicine Distributor
-          </button>
-          <button class="btn btn-outline" onclick="switchRole('admin')" style="padding:0.7rem 1.4rem; font-size:0.95rem;">
-            🛡️ Enter as Administrator
-          </button>
-        </div>
-      </div>
-
-      <!-- Portal Entry Cards -->
-      <div class="portal-cards-grid">
-        <div class="portal-entry-card" onclick="switchRole('pharmacy')">
-          <div class="portal-entry-icon" style="background:#e0f2fe; color:#0369a1;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
-            </svg>
-          </div>
-          <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">Pharmacy Cold-Storage Portal</h3>
-          <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem; flex:1;">
-            Real-time dashboard, ultrasonic inventory estimation, chamber temperature tracking (2°C - 8°C), and distributor subscription authorization.
-          </p>
-          <span style="font-size:0.8125rem; font-weight:600; color:var(--primary);">Explore Pharmacy Portal →</span>
-        </div>
-
-        <div class="portal-entry-card" onclick="switchRole('distributor')">
-          <div class="portal-entry-icon" style="background:#f3e8ff; color:#7c3aed;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="1" y="3" width="15" height="13"/>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/>
-              <circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
-          </div>
-          <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">Wholesale Distributor Portal</h3>
-          <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem; flex:1;">
-            Browse public directory, request inventory access, and monitor cold stock levels of approved pharmacies to proactively dispatch restocks.
-          </p>
-          <span style="font-size:0.8125rem; font-weight:600; color:#7c3aed;">Explore Distributor Portal →</span>
-        </div>
-
-        <div class="portal-entry-card" onclick="switchRole('admin')">
-          <div class="portal-entry-icon" style="background:#ccfbf1; color:#0f766e;">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-          </div>
-          <h3 style="font-size:1.15rem; margin-bottom:0.4rem;">Platform Administration</h3>
-          <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem; flex:1;">
-            Review facility registrations, verify licenses, supervise ESP8266 hardware nodes, and inspect platform audit logs.
-          </p>
-          <span style="font-size:0.8125rem; font-weight:600; color:#0d9488;">Explore Admin Portal →</span>
-        </div>
-      </div>
-
-      <!-- Public Pharmacy Directory (Zero-leakage proof) -->
+    <div class="charts-row" style="margin-bottom:1.5rem;">
       <div class="card">
         <div class="card-header">
-          <div class="card-title"><span>🏥 Public Pharmacy Network Registry</span></div>
-          <span class="badge badge-info">Zero Stock Leakage Public View</span>
+          <div class="card-title"><span>Telemetry Gateway Diagnostics</span></div>
         </div>
-        <div class="card-body" style="padding:0;">
+        <div class="card-body">
           <table class="data-table">
-            <thead>
-              <tr>
-                <th>Pharmacy</th>
-                <th>District / Location</th>
-                <th>Channel Availability</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${state.directoryPharmacies.map(p => `
-                <tr>
-                  <td>
-                    <strong>${p.name}</strong>
-                    <div style="font-size:0.75rem; color:var(--text-muted);">${p.license}</div>
-                  </td>
-                  <td>${p.city}</td>
-                  <td><span class="badge badge-neutral">${p.availability}</span></td>
-                  <td><span class="badge badge-success">Online & Audited</span></td>
-                </tr>
-              `).join('')}
-            </tbody>
+            <tr>
+              <td><strong>Assigned Unit</strong></td>
+              <td>${escapeHtml(pharma ? pharma.name : "Shelf A Monitor")}</td>
+            </tr>
+            <tr>
+              <td><strong>Device UID</strong></td>
+              <td><code>${escapeHtml(pharma ? pharma.device_uid : "esp32-demo-001")}</code></td>
+            </tr>
+            <tr>
+              <td><strong>Ingestion Interval</strong></td>
+              <td>Every 60 Seconds (Non-blocking)</td>
+            </tr>
+            <tr>
+              <td><strong>Gateway Status</strong></td>
+              <td>
+                <span class="badge ${state.sensorStatus.is_stale ? "badge-danger" : "badge-success"}">
+                  ${state.sensorStatus.is_stale ? "⚠️ Standalone / Disconnected" : "🟢 Active Online (Receiving Readings)"}
+                </span>
+              </td>
+            </tr>
+            <tr>
+              <td><strong>Last Recorded Ingestion</strong></td>
+              <td>${formatTimestamp(state.sensorStatus.last_reading_at)}</td>
+            </tr>
           </table>
         </div>
       </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><span>Active Servo Arc Alignment</span></div>
+        </div>
+        <div class="card-body">
+          <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem;">
+            The horizontal SG90/MG90S servo motor positions the HC-SR04 ultrasonic transducer to calibrated angles:
+          </p>
+          <div style="display:flex; flex-direction:column; gap:0.5rem;">
+            ${state.pharmacyMedicines
+              .map(
+                (m) => `
+              <div style="display:flex; justify-content:space-between; align-items:center; background:var(--bg-muted); padding:0.5rem 0.75rem; border-radius:var(--radius-sm);">
+                <span><span class="servo-angle-pill">📐 ${m.storage_angle}°</span> <strong>${escapeHtml(m.name)}</strong></span>
+                <span><code>${m.last_distance_cm ? m.last_distance_cm.toFixed(1) + " cm" : "No echo"}</code></span>
+              </div>
+            `
+              )
+              .join("")}
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Supabase Scans Log Table -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><span>📡 Real-Time Ingested Telemetry Feed (Supabase Table: scans)</span></div>
+        <span style="font-size:0.75rem; color:var(--text-muted);">${scans.length} recent sweeps</span>
+      </div>
+      <div class="table-container">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Sequence</th>
+              <th>Recorded At</th>
+              <th>Duration</th>
+              <th>Echoes Captured</th>
+              <th>Angular Distance Breakdown</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              scans.length === 0
+                ? `<tr><td colspan="6" style="text-align:center; padding:2rem; color:var(--text-muted);">Awaiting incoming telemetry from ESP32...</td></tr>`
+                : scans
+                    .map((s) => {
+                      const readings = s.distance_readings || [];
+                      return `
+                <tr>
+                  <td><strong>#${s.scan_sequence || 1}</strong></td>
+                  <td>${formatTimestamp(s.created_at)}</td>
+                  <td>${s.scan_duration_ms ? (s.scan_duration_ms / 1000).toFixed(2) + "s" : "—"}</td>
+                  <td><span class="badge badge-info">${s.valid_readings_count || readings.length} / ${s.angles_scanned || readings.length}</span></td>
+                  <td>
+                    <div style="display:flex; flex-wrap:wrap; gap:0.4rem;">
+                      ${readings
+                        .map(
+                          (r) => `
+                        <span style="background:var(--bg-muted); border:1px solid var(--border); padding:2px 6px; border-radius:4px; font-size:0.72rem; font-family:var(--font-mono);">
+                          ${r.angle}°: <strong>${r.is_valid && r.distance_cm !== null ? r.distance_cm.toFixed(1) + "cm" : "TIMEOUT"}</strong>
+                        </span>
+                      `
+                        )
+                        .join("")}
+                    </div>
+                  </td>
+                  <td><span class="badge badge-success">RECORDED</span></td>
+                </tr>
+              `;
+                    })
+                    .join("")
+            }
+          </tbody>
+        </table>
+      </div>
     </div>
   `;
 }
 
-// ==========================================================================
-// 15. Canvas Charting Engine (Pure 2D Canvas - Zero Dependencies)
-// ==========================================================================
+// ============================================================================
+// 11. Distributor Portal View
+// ============================================================================
 
-function initCharts() {
-  drawTempChart('tempChart', 220);
-  drawTempChart('tempChartLarge', 280);
-  drawStockChart('stockChart', 220);
-  drawDistributorChart('distributorStockChart', 220);
+function renderDistributorApp() {
+  const user = state.currentUser;
+  const tab = state.activeTab.dist;
+
+  return `
+    <header class="app-header">
+      <div class="header-inner">
+        <div class="brand-wrapper">
+          <div class="brand-icon">🚚</div>
+          <div>
+            <div class="brand-title">
+              Apex Wholesale Logistics
+              <span class="brand-tag" style="background:#0d9488; color:#fff;">Distributor Portal</span>
+            </div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">Real-Time Supply Chain Visibility</div>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <div style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-muted); padding:0.25rem 0.5rem; border-radius:var(--radius-sm);">
+            <span style="font-size:0.75rem; color:var(--text-muted);">Role:</span>
+            <button class="btn btn-sm ${user.role === 'pharm' ? 'btn-primary' : 'btn-outline'}" onclick="switchRole('pharm')">Pharmacy</button>
+            <button class="btn btn-sm ${user.role === 'dist' ? 'btn-primary' : 'btn-outline'}" onclick="switchRole('dist')">Distributor</button>
+          </div>
+          <div style="font-size:0.8125rem; font-weight:600; color:var(--text-main);">
+            ${escapeHtml(user.full_name)}
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="app-container">
+      <main class="app-main" style="max-width:1400px; margin:0 auto;">
+        <div class="page-header">
+          <div>
+            <h1 class="page-title">Authorized Pharmacy Depots</h1>
+            <p class="page-desc">Cold-storage inventory status for pharmacies that have granted visibility</p>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:1.5rem;">
+          <div class="card-header">
+            <div class="card-title"><span>🏥 Shelf A Cold Storage — Live Stock Status</span></div>
+            <span class="badge badge-success">ACTIVE GRANTED CHANNEL</span>
+          </div>
+          <div class="table-container">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Angle</th>
+                  <th>Medicine</th>
+                  <th>Stock Available</th>
+                  <th>Reorder Level</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${state.pharmacyMedicines
+                  .map(
+                    (m) => `
+                  <tr>
+                    <td><span class="servo-angle-pill">📐 ${m.storage_angle}°</span></td>
+                    <td><strong>${escapeHtml(m.name)}</strong></td>
+                    <td><strong style="color:${m.current_stock <= m.min_threshold ? 'var(--danger)' : 'var(--primary)'};">${m.current_stock} ${escapeHtml(m.unit)}</strong></td>
+                    <td><code>${m.min_threshold} ${escapeHtml(m.unit)}</code></td>
+                    <td><span class="badge ${getStatusBadgeClass(m.status)}">${m.status}</span></td>
+                  </tr>
+                `
+                  )
+                  .join("")}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </main>
+    </div>
+  `;
 }
 
-function drawTempChart(canvasId, height) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  
-  canvas.width = rect.width * dpr;
-  canvas.height = height * dpr;
-  ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = height;
-  const pad = { top: 20, right: 30, bottom: 30, left: 40 };
-
-  const history = state.temperatureHistory;
-  if (!history || history.length === 0) return;
-
-  const minT = 0;
-  const maxT = 10;
-
-  const getY = (val) => h - pad.bottom - ((val - minT) / (maxT - minT)) * (h - pad.top - pad.bottom);
-  const getX = (idx) => pad.left + (idx / (history.length - 1)) * (w - pad.left - pad.right);
-
-  // Background Safe Zone (2°C to 8°C)
-  const safeTop = getY(state.pharmacyProfile.tempMax);
-  const safeBottom = getY(state.pharmacyProfile.tempMin);
-
-  ctx.fillStyle = 'rgba(16, 185, 129, 0.08)';
-  ctx.fillRect(pad.left, safeTop, w - pad.left - pad.right, safeBottom - safeTop);
-
-  // Safe boundaries dashed lines
-  ctx.strokeStyle = '#10b981';
-  ctx.lineWidth = 1;
-  ctx.setLineDash([4, 4]);
-
-  ctx.beginPath();
-  ctx.moveTo(pad.left, safeTop);
-  ctx.lineTo(w - pad.right, safeTop);
-  ctx.stroke();
-
-  ctx.beginPath();
-  ctx.moveTo(pad.left, safeBottom);
-  ctx.lineTo(w - pad.right, safeBottom);
-  ctx.stroke();
-
-  ctx.setLineDash([]);
-
-  // Safe boundary labels
-  ctx.fillStyle = '#065f46';
-  ctx.font = '10px -apple-system, sans-serif';
-  ctx.fillText('Max Safe: ' + state.pharmacyProfile.tempMax + '°C', w - pad.right - 80, safeTop - 4);
-  ctx.fillText('Min Safe: ' + state.pharmacyProfile.tempMin + '°C', w - pad.right - 80, safeBottom + 12);
-
-  // Grid lines
-  ctx.strokeStyle = '#f1f5f9';
-  ctx.lineWidth = 1;
-  for (let t = 0; t <= 10; t += 2) {
-    const y = getY(t);
-    ctx.beginPath();
-    ctx.moveTo(pad.left, y);
-    ctx.lineTo(w - pad.right, y);
-    ctx.stroke();
-
-    ctx.fillStyle = '#94a3b8';
-    ctx.fillText(t + '°', 15, y + 3);
-  }
-
-  // Draw temperature curve
-  ctx.beginPath();
-  ctx.strokeStyle = '#0284c7';
-  ctx.lineWidth = 2.5;
-
-  history.forEach((pt, i) => {
-    const x = getX(i);
-    const y = getY(pt.temp);
-    if (i === 0) ctx.moveTo(x, y);
-    else ctx.lineTo(x, y);
-  });
-  ctx.stroke();
-
-  // Draw data points & X-axis labels
-  history.forEach((pt, i) => {
-    const x = getX(i);
-    const y = getY(pt.temp);
-
-    ctx.fillStyle = '#ffffff';
-    ctx.strokeStyle = '#0284c7';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, 4, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-
-    // Time label
-    ctx.fillStyle = '#64748b';
-    ctx.font = '10px -apple-system, sans-serif';
-    ctx.fillText(pt.time, x - 12, h - 10);
-  });
-}
-
-function drawStockChart(canvasId, height) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-
-  canvas.width = rect.width * dpr;
-  canvas.height = height * dpr;
-  ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = height;
-  const pad = { top: 20, right: 30, bottom: 30, left: 40 };
-
-  const data = state.stockHistory;
-  const maxV = 220;
-
-  const getY = (val) => h - pad.bottom - (val / maxV) * (h - pad.top - pad.bottom);
-  const barWidth = (w - pad.left - pad.right) / data.length - 16;
-
-  data.forEach((item, i) => {
-    const x = pad.left + i * ((w - pad.left - pad.right) / data.length) + 8;
-    const y = getY(item.count);
-    const barH = h - pad.bottom - y;
-
-    // Bar fill
-    ctx.fillStyle = '#0d9488';
-    ctx.beginPath();
-    ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
-    ctx.fill();
-
-    // Value label
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '10px -apple-system, sans-serif';
-    ctx.fillText(item.count, x + (barWidth / 2) - 8, y - 5);
-
-    // Day label
-    ctx.fillStyle = '#64748b';
-    ctx.fillText(item.day, x + (barWidth / 2) - 10, h - 10);
-  });
-}
-
-function drawDistributorChart(canvasId, height) {
-  const canvas = document.getElementById(canvasId);
-  if (!canvas) return;
-
-  const ctx = canvas.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-
-  canvas.width = rect.width * dpr;
-  canvas.height = height * dpr;
-  ctx.scale(dpr, dpr);
-
-  const w = rect.width;
-  const h = height;
-  const pad = { top: 20, right: 30, bottom: 30, left: 40 };
-
-  const meds = state.medicines.slice(0, 5);
-  const maxQ = 70;
-
-  meds.forEach((m, i) => {
-    const x = pad.left + i * ((w - pad.left - pad.right) / meds.length) + 6;
-    const barWidth = (w - pad.left - pad.right) / meds.length - 12;
-    const y = h - pad.bottom - (m.quantity / maxQ) * (h - pad.top - pad.bottom);
-    const barH = h - pad.bottom - y;
-
-    ctx.fillStyle = m.quantity <= m.threshold ? '#ef4444' : '#0284c7';
-    ctx.beginPath();
-    ctx.roundRect(x, y, barWidth, barH, [4, 4, 0, 0]);
-    ctx.fill();
-
-    ctx.fillStyle = '#0f172a';
-    ctx.font = '10px -apple-system, sans-serif';
-    ctx.fillText(m.quantity, x + (barWidth / 2) - 6, y - 5);
-
-    ctx.fillStyle = '#64748b';
-    ctx.fillText(m.name.substring(0, 8) + '..', x, h - 10);
-  });
-}
-
-// ==========================================================================
-// 16. Modals & Dialog Handlers
-// ==========================================================================
+// ============================================================================
+// 12. Modals (Add / Edit / Delete Slot & Invite Distributor)
+// ============================================================================
 
 function openAddMedicineModal() {
-  const modal = document.getElementById('modal-container');
+  const modal = document.getElementById("modal-container");
   if (!modal) return;
 
   modal.innerHTML = `
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">+ Add New Cold-Storage Medicine</div>
+        <div class="modal-title">+ Register Medicine & Storage Angle</div>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
       <div class="modal-body">
-        <div class="info-callout" style="margin-bottom:1rem;">
-          <div>💡</div>
-          <div>
-            <strong>Ultrasonic Calibration:</strong> Quantities are estimated based on stack clearance from shelf-mounted HC-SR04 sonar pulses.
+        <div class="hardware-callout" style="margin-bottom:1rem; padding:0.75rem 1rem;">
+          <div>📐</div>
+          <div style="font-size:0.75rem;">
+            Assign a servo angle (0° to 180°). The ceiling sensor rotates to this angle to interrogate this compartment.
           </div>
         </div>
 
         <div class="form-group">
           <label class="form-label">Medicine Full Name *</label>
-          <input type="text" id="m-name" class="form-input" placeholder="e.g. Rabies Vaccine Human Diploid">
+          <input type="text" id="m-name" class="form-input" placeholder="e.g. Paracetamol Infusion 100mL" required>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Counting Unit *</label>
+            <label class="form-label">Storage Servo Angle (0° – 180°) *</label>
+            <input type="number" id="m-angle" class="form-input" placeholder="e.g. 90" min="0" max="180" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Unit Type *</label>
             <select id="m-unit" class="form-select">
               <option value="vials">Vials</option>
-              <option value="ampoules">Ampoules</option>
               <option value="bottles">Bottles</option>
-              <option value="pre-filled syringes">Pre-filled Syringes</option>
+              <option value="bags">Bags</option>
+              <option value="ampoules">Ampoules</option>
+              <option value="boxes">Boxes</option>
             </select>
           </div>
+        </div>
+
+        <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Storage Compartment *</label>
-            <input type="text" id="m-comp" class="form-input" placeholder="e.g. Rack A - Slot 3">
+            <label class="form-label">Empty Container Distance ($D_{empty}$ in cm) *</label>
+            <input type="number" id="m-empty" class="form-input" value="45.0" step="0.5" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Full Stack Distance ($D_{full}$ in cm) *</label>
+            <input type="number" id="m-full" class="form-input" value="8.0" step="0.5" required>
           </div>
         </div>
 
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Initial Quantity *</label>
-            <input type="number" id="m-qty" class="form-input" value="30">
+            <label class="form-label">Maximum Container Capacity *</label>
+            <input type="number" id="m-max" class="form-input" value="50" min="1" required>
           </div>
           <div class="form-group">
-            <label class="form-label">Low-Stock Alert Threshold *</label>
-            <input type="number" id="m-thresh" class="form-input" value="15">
-          </div>
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Empty Tray Distance (cm)</label>
-            <input type="number" id="m-empty" class="form-input" value="45.0" step="0.5">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Full Stack Distance (cm)</label>
-            <input type="number" id="m-full" class="form-input" value="8.0" step="0.5">
+            <label class="form-label">Low Stock Reorder Threshold *</label>
+            <input type="number" id="m-thresh" class="form-input" value="15" min="0" required>
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveNewMedicine()">Register Medicine</button>
+        <button class="btn btn-primary" onclick="submitNewMedicine()">Save Medicine Slot</button>
       </div>
     </div>
   `;
-  modal.classList.add('open');
+  modal.classList.add("open");
 }
 
-function saveNewMedicine() {
-  const name = document.getElementById('m-name')?.value.trim();
-  const unit = document.getElementById('m-unit')?.value;
-  const comp = document.getElementById('m-comp')?.value.trim();
-  const qty = parseInt(document.getElementById('m-qty')?.value, 10);
-  const thresh = parseInt(document.getElementById('m-thresh')?.value, 10);
-  const empty = parseFloat(document.getElementById('m-empty')?.value) || 45.0;
-  const full = parseFloat(document.getElementById('m-full')?.value) || 8.0;
+function submitNewMedicine() {
+  const name = document.getElementById("m-name")?.value.trim();
+  const angle = parseInt(document.getElementById("m-angle")?.value, 10);
+  const unit = document.getElementById("m-unit")?.value;
+  const empty_cm = parseFloat(document.getElementById("m-empty")?.value);
+  const full_cm = parseFloat(document.getElementById("m-full")?.value);
+  const max_cap = parseInt(document.getElementById("m-max")?.value, 10);
+  const thresh = parseInt(document.getElementById("m-thresh")?.value, 10);
 
-  if (!name || !comp || isNaN(qty) || isNaN(thresh)) {
-    showToast('Please fill in all required fields.', 'warning');
+  if (!name || isNaN(angle) || isNaN(empty_cm) || isNaN(full_cm) || isNaN(max_cap) || isNaN(thresh)) {
+    showToast("Please fill in all required fields.", "warning");
     return;
   }
 
+  if (empty_cm <= full_cm) {
+    showToast("Empty container distance must exceed full stack distance.", "warning");
+    return;
+  }
+
+  // Create new medicine slot
   const newMed = {
-    id: 'med-' + Date.now(),
-    name: name,
-    unit: unit,
-    compartment: comp,
-    quantity: qty,
-    threshold: thresh,
-    status: qty <= thresh ? 'Low' : 'Normal',
-    lastMeasurement: new Date().toLocaleString(),
-    distance: parseFloat((empty - ((empty - full) * (qty / 50))).toFixed(1)),
-    confidence: 96,
-    calibration: { empty, full }
+    id: `med-${Date.now()}`,
+    name,
+    storage_angle: angle,
+    unit,
+    empty_distance_cm: empty_cm,
+    full_distance_cm: full_cm,
+    unit_height_cm: parseFloat(((empty_cm - full_cm) / max_cap).toFixed(3)),
+    max_capacity: max_cap,
+    min_threshold: thresh,
+    current_stock: Math.round(max_cap * 0.7),
+    last_distance_cm: full_cm + (empty_cm - full_cm) * 0.3,
+    last_reading_at: new Date().toISOString(),
+    status: "Normal",
   };
 
-  state.medicines.push(newMed);
-  saveState();
+  state.pharmacyMedicines.push(newMed);
+  localStorage.setItem("PHARMACY_MEDICINES", JSON.stringify(state.pharmacyMedicines));
+
   closeModal();
-  showToast(`Registered "${name}" in cold-storage inventory.`, 'success');
+  showToast(`Registered "${name}" at servo angle ${angle}°.`, "success");
+  fetchLiveTelemetryFromSupabase();
   renderApp();
 }
 
 function openEditMedicineModal(medId) {
-  const med = state.medicines.find(m => m.id === medId);
+  const med = state.pharmacyMedicines.find((m) => m.id === medId);
   if (!med) return;
 
-  const modal = document.getElementById('modal-container');
+  const modal = document.getElementById("modal-container");
   if (!modal) return;
 
   modal.innerHTML = `
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Edit Medicine & Sensor Limits</div>
+        <div class="modal-title">Edit Medicine & Geometry</div>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
           <label class="form-label">Medicine Full Name</label>
-          <input type="text" id="edit-name" class="form-input" value="${med.name}">
+          <input type="text" id="edit-name" class="form-input" value="${escapeHtml(med.name)}">
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Compartment Slot</label>
-            <input type="text" id="edit-comp" class="form-input" value="${med.compartment}">
+            <label class="form-label">Storage Angle (°)</label>
+            <input type="number" id="edit-angle" class="form-input" value="${med.storage_angle}">
           </div>
           <div class="form-group">
-            <label class="form-label">Quantity</label>
-            <input type="number" id="edit-qty" class="form-input" value="${med.quantity}">
+            <label class="form-label">Reorder Threshold</label>
+            <input type="number" id="edit-thresh" class="form-input" value="${med.min_threshold}">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Low-Stock Alert Level</label>
-            <input type="number" id="edit-thresh" class="form-input" value="${med.threshold}">
+            <label class="form-label">Empty Distance (cm)</label>
+            <input type="number" id="edit-empty" class="form-input" value="${med.empty_distance_cm}" step="0.5">
           </div>
           <div class="form-group">
-            <label class="form-label">Unit Type</label>
-            <input type="text" class="form-input" value="${med.unit}" readonly style="background:var(--bg-muted);">
+            <label class="form-label">Full Distance (cm)</label>
+            <input type="number" id="edit-full" class="form-input" value="${med.full_distance_cm}" step="0.5">
           </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="saveEditedMedicine('${med.id}')">Save Changes</button>
+        <button class="btn btn-primary" onclick="submitEditMedicine('${med.id}')">Save Changes</button>
       </div>
     </div>
   `;
-  modal.classList.add('open');
+  modal.classList.add("open");
 }
 
-function saveEditedMedicine(medId) {
-  const med = state.medicines.find(m => m.id === medId);
+function submitEditMedicine(medId) {
+  const med = state.pharmacyMedicines.find((m) => m.id === medId);
   if (!med) return;
 
-  med.name = document.getElementById('edit-name')?.value.trim() || med.name;
-  med.compartment = document.getElementById('edit-comp')?.value.trim() || med.compartment;
-  med.quantity = parseInt(document.getElementById('edit-qty')?.value, 10) || med.quantity;
-  med.threshold = parseInt(document.getElementById('edit-thresh')?.value, 10) || med.threshold;
-  med.status = med.quantity <= med.threshold ? 'Low' : 'Normal';
+  const name = document.getElementById("edit-name")?.value.trim();
+  const angle = parseInt(document.getElementById("edit-angle")?.value, 10);
+  const thresh = parseInt(document.getElementById("edit-thresh")?.value, 10);
+  const empty_cm = parseFloat(document.getElementById("edit-empty")?.value);
+  const full_cm = parseFloat(document.getElementById("edit-full")?.value);
 
-  saveState();
-  closeModal();
-  showToast(`Updated "${med.name}".`, 'success');
-  renderApp();
-}
-
-function deleteMedicine(medId) {
-  const med = state.medicines.find(m => m.id === medId);
-  if (!med) return;
-
-  if (confirm(`Remove "${med.name}" from cold-storage monitoring?`)) {
-    state.medicines = state.medicines.filter(m => m.id !== medId);
-    saveState();
-    showToast(`Removed "${med.name}".`, 'info');
-    renderApp();
-  }
-}
-
-function openTempConfigModal() {
-  const modal = document.getElementById('modal-container');
-  if (!modal) return;
-
-  modal.innerHTML = `
-    <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Configure Safe Temperature Range</div>
-        <button class="modal-close" onclick="closeModal()">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem;">
-          Define acceptable temperature boundaries. Automated alerts trigger when the chamber violates these bounds.
-        </p>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Minimum Temperature (°C)</label>
-            <input type="number" id="temp-min" class="form-input" value="${state.pharmacyProfile.tempMin}" step="0.5">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Maximum Temperature (°C)</label>
-            <input type="number" id="temp-max" class="form-input" value="${state.pharmacyProfile.tempMax}" step="0.5">
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-teal" onclick="saveTempConfig()">Apply Limits</button>
-      </div>
-    </div>
-  `;
-  modal.classList.add('open');
-}
-
-function saveTempConfig() {
-  const min = parseFloat(document.getElementById('temp-min')?.value);
-  const max = parseFloat(document.getElementById('temp-max')?.value);
-
-  if (isNaN(min) || isNaN(max) || min >= max) {
-    showToast('Invalid temperature range: Min must be less than Max.', 'warning');
+  if (!name || isNaN(angle) || isNaN(thresh) || isNaN(empty_cm) || isNaN(full_cm)) {
+    showToast("Please fill in all fields.", "warning");
     return;
   }
 
-  state.pharmacyProfile.tempMin = min;
-  state.pharmacyProfile.tempMax = max;
-  saveState();
+  med.name = name;
+  med.storage_angle = angle;
+  med.min_threshold = thresh;
+  med.empty_distance_cm = empty_cm;
+  med.full_distance_cm = full_cm;
+  med.unit_height_cm = parseFloat(((empty_cm - full_cm) / med.max_capacity).toFixed(3));
+
+  localStorage.setItem("PHARMACY_MEDICINES", JSON.stringify(state.pharmacyMedicines));
   closeModal();
-  showToast(`Chamber limits set to ${min}°C - ${max}°C.`, 'success');
+  showToast("Medicine geometry updated.", "success");
+  fetchLiveTelemetryFromSupabase();
   renderApp();
 }
 
-function openRequestAccessModal(pharmaId) {
-  const pharma = state.directoryPharmacies.find(p => p.id === pharmaId);
-  if (!pharma) return;
+function deleteMedicineSlot(medId) {
+  if (!confirm("Are you sure you want to remove this medicine storage slot?")) return;
+  state.pharmacyMedicines = state.pharmacyMedicines.filter((m) => m.id !== medId);
+  localStorage.setItem("PHARMACY_MEDICINES", JSON.stringify(state.pharmacyMedicines));
+  showToast("Medicine slot removed.", "info");
+  renderApp();
+}
 
-  const modal = document.getElementById('modal-container');
+function openInviteDistributorModal() {
+  const modal = document.getElementById("modal-container");
   if (!modal) return;
 
   modal.innerHTML = `
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">Request Stock Feed Access</div>
+        <div class="modal-title">+ Invite Wholesale Distributor</div>
         <button class="modal-close" onclick="closeModal()">✕</button>
       </div>
       <div class="modal-body">
-        <p style="font-size:0.8125rem; color:var(--text-muted); margin-bottom:1rem;">
-          Submit an access request to <strong>${pharma.name}</strong> to view live cold-storage medicine quantities.
-        </p>
         <div class="form-group">
-          <label class="form-label">Reason / Agreement Reference</label>
-          <textarea id="sub-reason" class="form-textarea" rows="3" placeholder="e.g. Primary vaccine distributor restock monitoring agreement"></textarea>
+          <label class="form-label">Distributor Firm Name *</label>
+          <input type="text" id="dist-name" class="form-input" placeholder="e.g. MedSupply Wholesale Ltd.">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Distributor Email Address *</label>
+          <input type="email" id="dist-email" class="form-input" placeholder="orders@medsupply.com">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Regional Hub / City</label>
+          <input type="text" id="dist-city" class="form-input" placeholder="Central Depot">
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-outline" onclick="closeModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAccessRequest('${pharma.id}')">Send Access Request</button>
+        <button class="btn btn-primary" onclick="submitDistributorInvite()">Send Invitation</button>
       </div>
     </div>
   `;
-  modal.classList.add('open');
+  modal.classList.add("open");
 }
 
-function submitAccessRequest(pharmaId) {
-  const reason = document.getElementById('sub-reason')?.value.trim() || 'Cold-chain restocking agreement';
+function submitDistributorInvite() {
+  const name = document.getElementById("dist-name")?.value.trim();
+  const email = document.getElementById("dist-email")?.value.trim();
+  const city = document.getElementById("dist-city")?.value.trim();
 
-  state.subscriptions.push({
-    id: 'sub-' + Date.now(),
-    distributorId: 'dist-1',
-    pharmacyId: pharmaId,
-    status: 'pending',
-    requestDate: new Date().toISOString().split('T')[0],
-    notes: reason
+  if (!name || !email) {
+    showToast("Please provide distributor name and email.", "warning");
+    return;
+  }
+
+  state.pharmacyDistributors.push({
+    id: `dist-${Date.now()}`,
+    name,
+    email,
+    city: city || "Depot",
+    status: "pending",
   });
 
-  saveState();
   closeModal();
-  showToast('Access request submitted. Awaiting pharmacy authorization.', 'info');
+  showToast(`Invitation sent to ${email}.`, "success");
+  renderApp();
+}
+
+function revokeDistributorAccess(distId) {
+  if (!confirm("Revoke this distributor's inventory viewing channel?")) return;
+  state.pharmacyDistributors = state.pharmacyDistributors.filter((d) => d.id !== distId);
+  showToast("Distributor access revoked.", "info");
   renderApp();
 }
 
 function closeModal() {
-  const modal = document.getElementById('modal-container');
-  if (modal) modal.classList.remove('open');
+  const modal = document.getElementById("modal-container");
+  if (modal) modal.classList.remove("open");
 }
 
-// ==========================================================================
-// 17. Toast System & Export Helpers
-// ==========================================================================
+// ============================================================================
+// 13. Toast Notifications & Initialization
+// ============================================================================
 
-function showToast(message, type = 'info') {
-  const container = document.getElementById('toast-container');
+function showToast(message, type = "info") {
+  const container = document.getElementById("toast-container");
   if (!container) return;
 
-  const toast = document.createElement('div');
+  const toast = document.createElement("div");
   toast.className = `toast toast-${type}`;
-  toast.innerHTML = `
-    <span>${type === 'success' ? '✅' : type === 'danger' ? '🚨' : type === 'warning' ? '⚠️' : 'ℹ️'}</span>
-    <span>${message}</span>
-  `;
-
+  toast.innerHTML = `<span>${escapeHtml(message)}</span>`;
   container.appendChild(toast);
 
   setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(10px)';
-    toast.style.transition = 'all 0.25s ease';
-    setTimeout(() => toast.remove(), 250);
-  }, 3500);
+    toast.style.opacity = "0";
+    toast.style.transform = "translateY(-8px)";
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
 }
 
-function exportDataCsv(type) {
-  let csvContent = "data:text/csv;charset=utf-8,";
-  if (type === 'temperature') {
-    csvContent += "Time,Temperature_C,Chamber_Status\n";
-    state.temperatureHistory.forEach(h => {
-      csvContent += `${h.time},${h.temp},Normal\n`;
-    });
-  } else {
-    csvContent += "Time,Actor,Action,Details\n";
-    state.auditLog.forEach(l => {
-      csvContent += `"${l.time}","${l.user}","${l.action}","${l.details}"\n`;
-    });
-  }
-
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `coldchain_${type}_export.csv`);
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  showToast(`Exported ${type} records as CSV.`, 'success');
-}
-
-// Window resize chart re-render
-window.addEventListener('resize', () => {
-  initCharts();
-});
-
-// Initialization
-document.addEventListener('DOMContentLoaded', () => {
+// Bootstrap on DOM Load
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", () => {
+    renderApp();
+    initRealtimeSync();
+  });
+} else {
   renderApp();
-});
+  initRealtimeSync();
+}

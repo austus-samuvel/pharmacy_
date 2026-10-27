@@ -178,10 +178,6 @@ body {
   color: #7c3aed;
 }
 
-.role-btn.role-admin.active {
-  color: #0d9488;
-}
-
 .header-actions {
   display: flex;
   align-items: center;
@@ -1200,3 +1196,152 @@ canvas.mini-chart {
     grid-template-columns: 1fr;
   }
 }
+
+/* ==========================================================================
+   Backend Sync, Servo Angles & Calibration UI Extensions
+   ========================================================================== */
+
+.backend-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  background: var(--info-light);
+  color: var(--info-text);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.backend-status-badge.synced {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+.servo-angle-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.5rem;
+  background: #f1f5f9;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+.badge-uncertain {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #f87171;
+  font-weight: 600;
+}
+
+.hardware-callout {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: var(--radius);
+  margin-bottom: 1.25rem;
+  font-size: 0.875rem;
+  color: #0369a1;
+}
+
+/* ==========================================================================
+   Authentication & Separate Role Portals
+   ========================================================================== */
+
+.auth-wrapper {
+  min-height: 85vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 1rem;
+}
+
+.auth-card {
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%;
+  max-width: 480px;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+
+.auth-header {
+  padding: 2rem 2rem 1.25rem;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.auth-role-tabs {
+  display: flex;
+  background: var(--bg-muted);
+  padding: 0.3rem;
+  border-radius: var(--radius-full);
+  margin-top: 1.25rem;
+  border: 1px solid var(--border);
+}
+
+.auth-role-btn {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-full);
+  border: none;
+  background: transparent;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+
+.auth-role-btn.active {
+  background: #ffffff;
+  color: var(--text-main);
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-subtabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  background: #ffffff;
+}
+
+.auth-subtab-btn {
+  flex: 1;
+  padding: 0.85rem;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s;
+}
+
+.auth-subtab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+
+.auth-body {
+  padding: 1.75rem 2rem 2rem;
+}
+
+
